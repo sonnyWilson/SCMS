@@ -265,6 +265,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <button class="nav-tab" onclick="showPage('vuln',this)">Vulnerabilities</button>
     <button class="nav-tab" onclick="showPage('mitre',this)">MITRE ATT&CK</button>
     <button class="nav-tab" onclick="showPage('response',this)">Active Response</button>
+    <button class="nav-tab" onclick="showPage('network',this)">Network Analysis</button>
     <button class="nav-tab" onclick="showPage('admin',this)">Administration</button>
   </div>
   <div class="nav-right">
@@ -650,6 +651,62 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
   </div>
 </div>
 
+<!-- NETWORK ANALYSIS -->
+<div class="page" id="page-network">
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat s-blue"><div class="stat-lbl">Total Packets</div><div class="stat-val c-blue" id="net-total">0</div></div>
+    <div class="stat s-red"><div class="stat-lbl">Anomaly Packets</div><div class="stat-val c-red" id="net-anomalies">0</div></div>
+    <div class="stat s-cyan"><div class="stat-lbl">Unique Source IPs</div><div class="stat-val c-cyan" id="net-unique-src">0</div></div>
+    <div class="stat s-orange"><div class="stat-lbl">ICS Packets</div><div class="stat-val c-orange" id="net-ics">0</div></div>
+  </div>
+  <div class="grid-2">
+    <div class="panel">
+      <div class="ph"><span class="pt">Protocol Distribution</span></div>
+      <div class="pb"><div class="chart-wrap"><canvas id="chart-net-proto"></canvas></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Packet Volume — Last 24 h</span></div>
+      <div class="pb"><div class="chart-wrap"><canvas id="chart-net-timeline"></canvas></div></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="panel">
+      <div class="ph"><span class="pt">Top Source IPs</span></div>
+      <div class="pb">
+        <table><thead><tr><th>IP Address</th><th>Packets</th></tr></thead>
+        <tbody id="net-top-src"></tbody></table>
+        <div id="net-top-src-empty" class="empty-state" style="display:none">No data</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><span class="pt">Top Destination IPs</span></div>
+      <div class="pb">
+        <table><thead><tr><th>IP Address</th><th>Packets</th></tr></thead>
+        <tbody id="net-top-dst"></tbody></table>
+        <div id="net-top-dst-empty" class="empty-state" style="display:none">No data</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">Anomaly Packets</span>
+      <button class="btn btn-blue" onclick="loadNetworkData()">↺ Refresh</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table><thead><tr>
+        <th class="col-time">Timestamp</th>
+        <th class="col-ip">Src IP</th><th class="col-ip">Dst IP</th>
+        <th class="col-type">Protocol</th>
+        <th>Src Port</th><th>Dst Port</th>
+        <th class="col-msg">Reason</th>
+        <th class="col-sev">Score</th>
+      </tr></thead>
+      <tbody id="net-anomaly-table"></tbody></table>
+    </div>
+    <div id="net-anomaly-empty" class="empty-state">No anomaly packets captured</div>
+  </div>
+</div>
+
 <!-- ADMIN -->
 <div class="page" id="page-admin">
   <div class="grid-2">
@@ -816,6 +873,7 @@ function showPage(name, el) {
   if (name === 'analytics') buildAnalytics();
   if (name === 'mitre') buildMitreMatrix();
   if (name === 'admin') { loadDbs(); loadInventory(); loadHealth(); }
+  if (name === 'network') loadNetworkData();
 }
 
 // FETCH STATS
@@ -1347,7 +1405,7 @@ async function blockIP() {
   try {
     const r = await fetch('/api/block-ip', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip,reason}) });
     const d = await r.json();
-    if (d.success) {
+    if (d.ok) {
       blockedIPs[ip] = { reason, time:new Date().toISOString() };
       renderBlockedTable(); renderSidebarBlocked();
       setNum('ar-blocked-count', Object.keys(blockedIPs).length);
@@ -1422,8 +1480,8 @@ async function loadProcesses() {
         <td style="color:var(--blue)">${p.user}</td>
         <td>${p.cpu}</td>
         <td>${p.mem}</td>
-        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="${escHtml(p.cmd)}">${escHtml(p.cmd)}</td>
-        <td><button class="btn btn-red btn-sm" onclick="killProcess(${p.pid},'${escHtml(p.cmd).slice(0,20)}')">Kill</button></td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="${escHtml(p.command)}">${escHtml(p.command)}</td>
+        <td><button class="btn btn-red btn-sm" onclick="killProcess(${p.pid},'${escHtml(p.command).slice(0,20)}')">Kill</button></td>
       </tr>`
     ).join('');
     arLogEntry(`Process list refreshed: ${procs.length} processes`,'info');
@@ -1435,9 +1493,103 @@ async function killProcess(pid, name) {
   try {
     const r = await fetch('/api/kill-process', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pid}) });
     const d = await r.json();
-    if (d.success) { arLogEntry(`Killed PID ${pid} (${name})`,'ok'); toast(`SIGTERM sent to PID ${pid}`,'ok'); loadProcesses(); }
-    else toast(d.message,'err');
+    if (d.ok) { arLogEntry(`Killed PID ${pid} (${name})`,'ok'); toast(`SIGTERM sent to PID ${pid}`,'ok'); loadProcesses(); }
+    else toast(d.error || d.message,'err');
   } catch(e) { toast('Kill failed: '+e.message,'err'); }
+}
+
+// NETWORK ANALYSIS
+let netCharts = {};
+
+async function loadNetworkData() {
+  try {
+    const r = await fetch('/api/network');
+    if (!r.ok) { toast('Network data load failed','err'); return; }
+    const d = await r.json();
+    if (d.error) { toast('Network API error: '+d.error,'err'); return; }
+
+    setNum('net-total',      d.total_packets);
+    setNum('net-anomalies',  d.anomaly_packets);
+    setNum('net-unique-src', d.unique_src_ips);
+    setNum('net-ics',        d.ics_packets);
+
+    // Protocol distribution chart
+    if (netCharts.proto) netCharts.proto.destroy();
+    const protoCtx = document.getElementById('chart-net-proto');
+    if (protoCtx && d.protocols && d.protocols.length) {
+      netCharts.proto = new Chart(protoCtx, {
+        type: 'doughnut',
+        data: {
+          labels: d.protocols.map(p => p[0]),
+          datasets: [{ data: d.protocols.map(p => p[1]),
+            backgroundColor: ['#0ea5e9','#00d4aa','#e3a03a','#f85149','#bc8cff','#3fb950','#79c0ff','#d29922','#5a7080','#ff6b6b'] }]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins: { legend: { labels: { color:'#cdd6e0', font:{size:11} } } } }
+      });
+    }
+
+    // 24h packet volume timeline
+    if (netCharts.timeline) netCharts.timeline.destroy();
+    const tlCtx = document.getElementById('chart-net-timeline');
+    if (tlCtx && d.timeline && d.timeline.length) {
+      netCharts.timeline = new Chart(tlCtx, {
+        type: 'line',
+        data: {
+          labels: d.timeline.map(t => t[0] ? new Date(t[0]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : ''),
+          datasets: [{ label:'Packets', data: d.timeline.map(t => t[1]),
+            borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,0.12)',
+            fill:true, tension:0.3, pointRadius:2 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: { x:{ticks:{color:'#5a7080',maxTicksLimit:12}}, y:{ticks:{color:'#5a7080'}} },
+          plugins: { legend: { display:false } } }
+      });
+    }
+
+    // Top source IPs table
+    const srcTbody = document.getElementById('net-top-src');
+    const srcEmpty = document.getElementById('net-top-src-empty');
+    if (d.top_src && d.top_src.length) {
+      srcEmpty.style.display = 'none';
+      srcTbody.innerHTML = d.top_src.map(([ip,c]) =>
+        `<tr><td style="font-family:'IBM Plex Mono',monospace;color:var(--cyan)">${escHtml(ip)}</td>
+             <td style="font-family:'IBM Plex Mono',monospace">${c.toLocaleString()}</td></tr>`
+      ).join('');
+    } else { srcTbody.innerHTML=''; srcEmpty.style.display='block'; }
+
+    // Top destination IPs table
+    const dstTbody = document.getElementById('net-top-dst');
+    const dstEmpty = document.getElementById('net-top-dst-empty');
+    if (d.top_dst && d.top_dst.length) {
+      dstEmpty.style.display = 'none';
+      dstTbody.innerHTML = d.top_dst.map(([ip,c]) =>
+        `<tr><td style="font-family:'IBM Plex Mono',monospace;color:var(--blue)">${escHtml(ip)}</td>
+             <td style="font-family:'IBM Plex Mono',monospace">${c.toLocaleString()}</td></tr>`
+      ).join('');
+    } else { dstTbody.innerHTML=''; dstEmpty.style.display='block'; }
+
+    // Anomaly packets table
+    const anomTbody = document.getElementById('net-anomaly-table');
+    const anomEmpty = document.getElementById('net-anomaly-empty');
+    if (d.anomalies && d.anomalies.length) {
+      anomEmpty.style.display = 'none';
+      anomTbody.innerHTML = d.anomalies.map(a => {
+        const scoreColor = a.score >= 70 ? 'var(--red)' : a.score >= 40 ? 'var(--orange)' : 'var(--yellow)';
+        return `<tr>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--muted);white-space:nowrap">${(a.time||'').slice(0,19)}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--cyan)">${escHtml(a.src_ip||'—')}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--blue)">${escHtml(a.dst_ip||'—')}</td>
+          <td style="font-family:'IBM Plex Mono',monospace">${escHtml(a.protocol||'—')}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--muted)">${a.src_port||'—'}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:var(--muted)">${a.dst_port||'—'}</td>
+          <td>${escHtml(a.reason||'—')}</td>
+          <td style="font-family:'IBM Plex Mono',monospace;color:${scoreColor};font-weight:600">${a.score||0}</td>
+        </tr>`;
+      }).join('');
+    } else { anomTbody.innerHTML=''; anomEmpty.style.display='block'; }
+
+  } catch(e) { toast('Network load error: '+e.message,'err'); }
 }
 
 // COMPLIANCE

@@ -177,12 +177,18 @@ def register_routes(app: Flask):
     @api_login_required
     def api_stats():
         try:
-            total_logs = db.query("SELECT COUNT(*) FROM Logs")[0][0]
-            failed     = db.query("SELECT COUNT(*) FROM Logs WHERE Success=0")[0][0]
-            incidents  = db.query("SELECT COUNT(*) FROM Incidents")[0][0]
-            open_inc   = db.query("SELECT COUNT(*) FROM Incidents WHERE Status='OPEN'")[0][0]
-            packets    = db.query("SELECT COUNT(*) FROM Packets")[0][0]
-            anomalies  = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
+            total_logs      = db.query("SELECT COUNT(*) FROM Logs")[0][0]
+            failed          = db.query("SELECT COUNT(*) FROM Logs WHERE Success=0")[0][0]
+            incidents       = db.query("SELECT COUNT(*) FROM Incidents")[0][0]
+            open_inc        = db.query("SELECT COUNT(*) FROM Incidents WHERE Status='OPEN'")[0][0]
+            packets         = db.query("SELECT COUNT(*) FROM Packets")[0][0]
+            anomalies       = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
+            brute_total     = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE Success=0 AND SourceIp IS NOT NULL")[0][0]
+            sudo_total      = db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUDO'")[0][0]
+            unique_ips      = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE SourceIp IS NOT NULL")[0][0]
+            suspicious_count= db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUSPICIOUS_COMMAND'")[0][0]
+            auth_count      = db.query("SELECT COUNT(*) FROM Logs WHERE EventType IN ('AUTH','AUTH_FAIL')")[0][0]
+            host_count      = db.query("SELECT COUNT(DISTINCT HostName) FROM Logs WHERE HostName IS NOT NULL AND HostName!=''")[0][0]
 
             logs_rows = db.query("""
                 SELECT logid, EventTime, EventType, Success, UserName,
@@ -225,6 +231,12 @@ def register_routes(app: Flask):
                 "open_incidents":   open_inc,
                 "total_packets":    packets,
                 "anomaly_packets":  anomalies,
+                "brute_total":      brute_total,
+                "sudo_total":       sudo_total,
+                "unique_ips":       unique_ips,
+                "suspicious_count": suspicious_count,
+                "auth_count":       auth_count,
+                "host_count":       host_count,
                 "logs":             logs,
                 "top_ips":          top_ips,
                 "sudo_users":       sudo_users,
@@ -252,6 +264,83 @@ def register_routes(app: Flask):
             "mitre_ids":   r[12],
             "zone":        r[13],
         }
+
+    # ── /api/network ─────────────────────────────────────────────────────────
+    @app.route("/api/network")
+    @api_login_required
+    def api_network():
+        try:
+            total_pkts  = db.query("SELECT COUNT(*) FROM Packets")[0][0]
+            anomaly_pkts= db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
+            unique_src  = db.query("SELECT COUNT(DISTINCT SrcIp) FROM Packets WHERE SrcIp IS NOT NULL")[0][0]
+            ics_pkts    = db.query("SELECT COUNT(*) FROM Packets WHERE ICSProtocol IS NOT NULL")[0][0]
+
+            proto_rows = db.query("""
+                SELECT Protocol, COUNT(*) as c FROM Packets
+                WHERE Protocol IS NOT NULL
+                GROUP BY Protocol ORDER BY c DESC LIMIT 10
+            """)
+            protocols = [[r[0], r[1]] for r in proto_rows]
+
+            top_src_rows = db.query("""
+                SELECT SrcIp, COUNT(*) as c FROM Packets
+                WHERE SrcIp IS NOT NULL
+                GROUP BY SrcIp ORDER BY c DESC LIMIT 10
+            """)
+            top_src = [[r[0], r[1]] for r in top_src_rows]
+
+            top_dst_rows = db.query("""
+                SELECT DstIp, COUNT(*) as c FROM Packets
+                WHERE DstIp IS NOT NULL
+                GROUP BY DstIp ORDER BY c DESC LIMIT 10
+            """)
+            top_dst = [[r[0], r[1]] for r in top_dst_rows]
+
+            ics_proto_rows = db.query("""
+                SELECT ICSProtocol, COUNT(*) as c FROM Packets
+                WHERE ICSProtocol IS NOT NULL
+                GROUP BY ICSProtocol ORDER BY c DESC
+            """)
+            ics_protocols = [[r[0], r[1]] for r in ics_proto_rows]
+
+            anomaly_rows = db.query("""
+                SELECT pktid, CaptureTime, SrcIp, DstIp, Protocol,
+                       SrcPort, DstPort, AnomalyReason, ThreatScore
+                FROM Packets WHERE Anomaly=TRUE
+                ORDER BY CaptureTime DESC LIMIT 50
+            """)
+            anomalies = [{
+                "id":      r[0],
+                "time":    r[1].isoformat() if r[1] else None,
+                "src_ip":  r[2], "dst_ip": r[3],
+                "protocol":r[4],
+                "src_port":r[5], "dst_port": r[6],
+                "reason":  r[7], "score": r[8],
+            } for r in anomaly_rows]
+
+            timeline_rows = db.query("""
+                SELECT date_trunc('hour', CaptureTime) as hr, COUNT(*)
+                FROM Packets
+                WHERE CaptureTime >= NOW() - INTERVAL '24 hours'
+                GROUP BY hr ORDER BY hr
+            """)
+            timeline = [[r[0].isoformat() if r[0] else None, r[1]] for r in timeline_rows]
+
+            return jsonify({
+                "total_packets":  total_pkts,
+                "anomaly_packets":anomaly_pkts,
+                "unique_src_ips": unique_src,
+                "ics_packets":    ics_pkts,
+                "protocols":      protocols,
+                "top_src":        top_src,
+                "top_dst":        top_dst,
+                "ics_protocols":  ics_protocols,
+                "anomalies":      anomalies,
+                "timeline":       timeline,
+            }), 200
+        except Exception as e:
+            log.error("api_network: %s", e)
+            return jsonify({"error": str(e)}), 500
 
     # ── /api/top-ips ──────────────────────────────────────────────────────────
     @app.route("/api/top-ips")
