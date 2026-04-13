@@ -257,21 +257,25 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <span style="font-size:13px;font-weight:500;letter-spacing:.02em">Secure Continuous Monitoring System</span>
   </div>
   <div class="nav-center">
-    <button class="nav-tab active" onclick="showPage('overview',this)">Overview</button>
-    <button class="nav-tab" onclick="showPage('logs',this)">Log Events</button>
-    <button class="nav-tab" onclick="showPage('analytics',this)">Analytics</button>
-    <button class="nav-tab" onclick="showPage('fim',this)">File Integrity</button>
-    <button class="nav-tab" onclick="showPage('sca',this)">Config Audit</button>
-    <button class="nav-tab" onclick="showPage('vuln',this)">Vulnerabilities</button>
-    <button class="nav-tab" onclick="showPage('mitre',this)">MITRE ATT&CK</button>
-    <button class="nav-tab" onclick="showPage('response',this)">Active Response</button>
-    <button class="nav-tab" onclick="showPage('admin',this)">Administration</button>
+    <button class="nav-tab active" id="nav-overview">Overview</button>
+    <button class="nav-tab" id="nav-logs">Log Events</button>
+    <button class="nav-tab" id="nav-analytics">Analytics</button>
+    <button class="nav-tab" id="nav-assets">Assets</button>
+    <button class="nav-tab" id="nav-network">Network</button>
+    <button class="nav-tab" id="nav-ics">ICS/SCADA</button>
+    <button class="nav-tab" id="nav-honeypot">Honeypot</button>
+    <button class="nav-tab" id="nav-fim">File Integrity</button>
+    <button class="nav-tab" id="nav-sca">Config Audit</button>
+    <button class="nav-tab" id="nav-vuln">Vulnerabilities</button>
+    <button class="nav-tab" id="nav-mitre">MITRE ATT&CK</button>
+    <button class="nav-tab" id="nav-response">Active Response</button>
+    <button class="nav-tab" id="nav-admin">Administration</button>
   </div>
   <div class="nav-right">
     <div class="live-badge"><div class="live-dot"></div><span>LIVE</span></div>
     <span class="nav-time" id="nav-time">--:--:--</span>
-    <button class="nav-btn" onclick="exportCSV()">⬇ Export CSV</button>
-    <button class="nav-btn danger" onclick="confirmClear()">✕ Clear Logs</button>
+    <button class="nav-btn" id="btn-export-nav">⬇ Export CSV</button>
+    <button class="nav-btn danger" id="btn-clear-nav">✕ Clear Logs</button>
   </div>
 </nav>
 
@@ -355,38 +359,38 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
 <div class="page" id="page-logs">
   <div class="search-bar">
     <span style="color:var(--muted);font-size:13px">⌕</span>
-    <input class="search-input" id="log-search" placeholder="Search messages, IPs, usernames…" oninput="filterLogs()">
+    <input class="search-input" id="log-search" placeholder="Search messages, IPs, usernames…">
     <span id="log-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap">0 events</span>
   </div>
   <div class="filter-row">
     <span class="fl">Filter:</span>
-    <span class="chip active" data-filter="ALL" onclick="setFilter(this,'ALL')">ALL</span>
-    <span class="chip cr" data-filter="AUTH" onclick="setFilter(this,'AUTH')">AUTH</span>
-    <span class="chip co" data-filter="SUDO" onclick="setFilter(this,'SUDO')">SUDO</span>
-    <span class="chip cr" data-filter="SUSPICIOUS_COMMAND" onclick="setFilter(this,'SUSPICIOUS_COMMAND')">SUSPICIOUS</span>
-    <span class="chip cp" data-filter="BASH_HISTORY" onclick="setFilter(this,'BASH_HISTORY')">BASH</span>
-    <span class="chip cb" data-filter="SYS" onclick="setFilter(this,'SYS')">SYS</span>
-    <span class="chip cc" data-filter="CRON" onclick="setFilter(this,'CRON')">CRON</span>
-    <span class="chip cb" data-filter="PKG_MGMT" onclick="setFilter(this,'PKG_MGMT')">PKG_MGMT</span>
-    <span class="chip cy" data-filter="NET_CHANGE" onclick="setFilter(this,'NET_CHANGE')">NET_CHANGE</span>
-    <span class="chip co" data-filter="SYS_ERROR" onclick="setFilter(this,'SYS_ERROR')">SYS_ERROR</span>
+    <span class="chip active" data-filter="ALL">ALL</span>
+    <span class="chip cr" data-filter="AUTH">AUTH</span>
+    <span class="chip co" data-filter="SUDO">SUDO</span>
+    <span class="chip cr" data-filter="SUSPICIOUS_COMMAND">SUSPICIOUS</span>
+    <span class="chip cp" data-filter="BASH_HISTORY">BASH</span>
+    <span class="chip cb" data-filter="SYS">SYS</span>
+    <span class="chip cc" data-filter="CRON">CRON</span>
+    <span class="chip cb" data-filter="PKG_MGMT">PKG_MGMT</span>
+    <span class="chip cy" data-filter="NET_CHANGE">NET_CHANGE</span>
+    <span class="chip co" data-filter="SYS_ERROR">SYS_ERROR</span>
     <span style="flex:1"></span>
     <span class="fl">Severity:</span>
-    <span class="chip cr" data-sev="3" onclick="setSev(this,3)">CRITICAL</span>
-    <span class="chip co" data-sev="2" onclick="setSev(this,2)">HIGH</span>
-    <span class="chip" data-sev="1" onclick="setSev(this,1)">MEDIUM</span>
-    <span class="chip" data-sev="0" onclick="setSev(this,0)">LOW</span>
+    <span class="chip cr" data-sev="3">CRITICAL</span>
+    <span class="chip co" data-sev="2">HIGH</span>
+    <span class="chip" data-sev="1">MEDIUM</span>
+    <span class="chip" data-sev="0">LOW</span>
   </div>
   <div class="panel" style="margin-bottom:0">
     <div style="overflow-x:auto">
       <table><thead><tr>
-        <th class="col-time" onclick="sortTable('timestamp')">Timestamp</th>
-        <th class="col-type" onclick="sortTable('eventtype')">Type</th>
-        <th class="col-host" onclick="sortTable('hostname')">Host</th>
-        <th class="col-user" onclick="sortTable('username')">User</th>
-        <th class="col-ip" onclick="sortTable('sourceip')">Source IP</th>
+        <th class="col-time" data-sort="timestamp">Timestamp</th>
+        <th class="col-type" data-sort="eventtype">Type</th>
+        <th class="col-host" data-sort="hostname">Host</th>
+        <th class="col-user" data-sort="username">User</th>
+        <th class="col-ip" data-sort="sourceip">Source IP</th>
         <th class="col-msg">Message</th>
-        <th class="col-sev" onclick="sortTable('threat_level')">Severity</th>
+        <th class="col-sev" data-sort="threat_level">Severity</th>
       </tr></thead>
       <tbody id="log-table"></tbody></table>
     </div>
@@ -449,9 +453,9 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
       <span class="pt">File Integrity Monitoring</span>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input class="form-input" id="fim-path-input" placeholder="/path/to/file" style="width:240px;font-size:11px;padding:5px 10px">
-        <button class="btn btn-accent" onclick="addFimPath()">+ Add Path</button>
-        <button class="btn btn-blue" onclick="runFim()">▶ Run Scan</button>
-        <button class="btn" onclick="resetFimBaseline()" title="Clear baseline and re-establish">↺ Reset Baseline</button>
+        <button class="btn btn-accent" id="btn-add-fim-path">+ Add Path</button>
+        <button class="btn btn-blue" id="btn-run-fim">▶ Run Scan</button>
+        <button class="btn" id="btn-reset-fim-baseline" title="Clear baseline and re-establish">↺ Reset Baseline</button>
       </div>
     </div>
     <div class="pb">
@@ -487,13 +491,13 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <div class="ph">
       <span class="pt">CIS Benchmark — 32 Security Checks</span>
       <div style="display:flex;gap:8px;align-items:center">
-        <select class="form-select" id="sca-filter" style="width:160px;padding:5px 10px;font-size:10px" onchange="filterSca()">
+        <select class="form-select" id="sca-filter" style="width:160px;padding:5px 10px;font-size:10px">
           <option value="ALL">All Checks</option>
           <option value="FAIL">Failures Only</option>
           <option value="PASS">Passed Only</option>
           <option value="CRITICAL">Critical Only</option>
         </select>
-        <button class="btn btn-accent" onclick="runSca()">▶ Run Checks</button>
+        <button class="btn btn-accent" id="btn-run-sca">▶ Run Checks</button>
       </div>
     </div>
     <div class="pb">
@@ -523,7 +527,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
       <span class="pt">Vulnerability Detection</span>
       <div style="display:flex;gap:8px;align-items:center">
         <span id="vuln-source-badge" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted)"></span>
-        <button class="btn btn-accent" onclick="runVuln()">▶ Scan Packages</button>
+        <button class="btn btn-accent" id="btn-run-vuln">▶ Scan Packages</button>
       </div>
     </div>
     <div class="pb">
@@ -587,13 +591,13 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
           </select>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-red" onclick="blockIP()">⊘ Block IP</button>
-          <button class="btn" onclick="unblockIP()">✓ Unblock IP</button>
+          <button class="btn btn-red" id="btn-block-ip">⊘ Block IP</button>
+          <button class="btn" id="btn-unblock-ip">✓ Unblock IP</button>
         </div>
       </div>
     </div>
     <div class="panel">
-      <div class="ph"><span class="pt">Auto-Response Rules</span><button class="btn btn-accent" style="font-size:9px;padding:4px 10px" onclick="saveAutoRules()">Save Rules</button></div>
+      <div class="ph"><span class="pt">Auto-Response Rules</span><button class="btn btn-accent" style="font-size:9px;padding:4px 10px" id="btn-save-auto-rules">Save Rules</button></div>
       <div class="pb">
         <div style="display:flex;flex-direction:column;gap:10px">
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:12px">
@@ -630,7 +634,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
   <div class="panel">
     <div class="ph">
       <span class="pt">Process Manager</span>
-      <button class="btn btn-blue" onclick="loadProcesses()">↺ Refresh</button>
+      <button class="btn btn-blue" id="btn-load-processes">↺ Refresh</button>
     </div>
     <div class="pb" style="max-height:280px;overflow-y:auto">
       <table class="proc-table">
@@ -659,8 +663,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
         <div class="form-group">
           <label class="form-label">Search / Select Database</label>
           <div style="display:flex;gap:8px">
-            <input class="form-input" id="db-search-input" placeholder="Search databases…" oninput="filterDbs()" style="flex:1">
-            <button class="btn btn-accent" onclick="loadDbs()">↺ Refresh</button>
+            <input class="form-input" id="db-search-input" placeholder="Search databases…" style="flex:1">
+            <button class="btn btn-accent" id="btn-load-dbs">↺ Refresh</button>
           </div>
         </div>
         <div class="db-list" id="db-list" style="max-height:180px;overflow-y:auto;margin-bottom:12px"></div>
@@ -669,7 +673,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
           <label class="form-label">Create New Database</label>
           <div style="display:flex;gap:8px">
             <input class="form-input" id="db-create-name" placeholder="new_database_name" style="flex:1">
-            <button class="btn btn-blue" onclick="createDb()">+ Create</button>
+            <button class="btn btn-blue" id="btn-create-db">+ Create</button>
           </div>
         </div>
         <div id="db-status" style="font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:8px"></div>
@@ -682,7 +686,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
           <label class="form-label">Add Log Path to Monitor</label>
           <div style="display:flex;gap:8px">
             <input class="form-input" id="log-path-input" placeholder="/var/log/custom.log" style="flex:1">
-            <button class="btn btn-accent" onclick="addLogPath()">+ Add</button>
+            <button class="btn btn-accent" id="btn-add-log-path">+ Add</button>
           </div>
         </div>
         <div class="path-list" id="log-paths" style="max-height:220px;overflow-y:auto"></div>
@@ -708,7 +712,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
   <div class="panel">
     <div class="ph">
       <span class="pt">Regulatory Compliance</span>
-      <button class="btn btn-accent" onclick="runComplianceCheck()">▶ Compute Scores</button>
+      <button class="btn btn-accent" id="btn-run-compliance">▶ Compute Scores</button>
     </div>
     <div class="pb">
       <div class="grid-3" id="comp-grid">
@@ -741,15 +745,302 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <div class="ph"><span class="pt">CSV Import / Export</span></div>
     <div class="pb">
       <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-accent" onclick="exportCSV()">⬇ Export CSV (last 5000 events)</button>
+        <button class="btn btn-accent" id="btn-export-admin">⬇ Export CSV (last 5000 events)</button>
         <div style="display:flex;gap:8px;align-items:center">
           <label class="btn btn-blue" style="cursor:pointer">
             ⬆ Import CSV
-            <input type="file" id="csv-import-file" accept=".csv" style="display:none" onchange="importCSV(this)">
+            <input type="file" id="csv-import-file" accept=".csv" style="display:none">
           </label>
           <span id="import-status" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></span>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page-admin -->
+
+<!-- ASSET MANAGEMENT -->
+<div class="page" id="page-assets">
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat s-blue"><div class="stat-lbl">Total Assets</div><div class="stat-val c-blue" id="ast-total">—</div></div>
+    <div class="stat s-red"><div class="stat-lbl">ICS Devices</div><div class="stat-val c-red" id="ast-ics">—</div></div>
+    <div class="stat s-orange"><div class="stat-lbl">High Risk</div><div class="stat-val c-orange" id="ast-highrisk">—</div></div>
+    <div class="stat s-green"><div class="stat-lbl">Zones</div><div class="stat-val c-green" id="ast-zones">—</div></div>
+  </div>
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">Asset Inventory</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="ast-search" placeholder="Search IP, hostname, vendor…" style="width:220px;font-size:11px;padding:5px 10px">
+        <select class="form-select" id="ast-filter-zone" style="width:140px;font-size:10px;padding:5px 10px">
+          <option value="">All Zones</option>
+        </select>
+        <select class="form-select" id="ast-filter-type" style="width:140px;font-size:10px;padding:5px 10px">
+          <option value="">All Types</option>
+          <option value="ICS">ICS Only</option>
+          <option value="IT">IT Only</option>
+        </select>
+        <button class="btn btn-accent" id="btn-load-assets">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="pb" style="overflow-x:auto">
+      <table id="ast-table">
+        <thead><tr>
+          <th>IP Address</th><th>Hostname</th><th>MAC</th><th>Vendor</th>
+          <th>Type</th><th>OS</th><th>Zone</th><th>Criticality</th>
+          <th>ICS Proto</th><th>Threat Score</th><th>Last Seen</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="ast-tbody"></tbody>
+      </table>
+      <div id="ast-empty" class="empty-state">No assets found. Run a network scan to discover devices.</div>
+    </div>
+  </div>
+  <!-- Asset Edit Modal -->
+  <div id="ast-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center">
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:24px;width:420px;max-width:95vw">
+      <div class="ph" style="margin-bottom:16px"><span class="pt">Edit Asset</span><button class="dc" id="btn-close-ast-modal">✕</button></div>
+      <input type="hidden" id="ast-edit-id">
+      <div class="form-group"><label class="form-label">Criticality</label>
+        <select class="form-select" id="ast-edit-crit">
+          <option>CRITICAL</option><option>HIGH</option><option selected>MEDIUM</option><option>LOW</option>
+        </select></div>
+      <div class="form-group"><label class="form-label">Zone</label>
+        <input class="form-input" id="ast-edit-zone" placeholder="e.g. Turbine Control"></div>
+      <div class="form-group"><label class="form-label">Notes</label>
+        <input class="form-input" id="ast-edit-notes" placeholder="Free-text notes"></div>
+      <button class="btn btn-accent" id="btn-save-asset" style="margin-top:8px">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- NETWORK ANALYSIS -->
+<div class="page" id="page-network">
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat s-blue"><div class="stat-lbl">Packets Captured</div><div class="stat-val c-blue" id="net-pkts">0</div></div>
+    <div class="stat s-red"><div class="stat-lbl">Anomalies</div><div class="stat-val c-red" id="net-anomalies">0</div></div>
+    <div class="stat s-orange"><div class="stat-lbl">ICS Packets</div><div class="stat-val c-orange" id="net-ics-pkts">0</div></div>
+    <div class="stat s-green"><div class="stat-lbl">Capture Status</div><div class="stat-val" id="net-status" style="font-size:12px">IDLE</div></div>
+  </div>
+  <div class="grid-2">
+    <!-- Capture Control -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Packet Capture</span></div>
+      <div class="pb">
+        <div class="form-group"><label class="form-label">Network Interface</label>
+          <select class="form-select" id="net-iface"><option>eth0</option></select></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-accent" id="btn-capture-start">▶ Start Capture</button>
+          <button class="btn btn-red" id="btn-capture-stop">■ Stop</button>
+          <button class="btn" id="btn-capture-refresh">↺ Refresh Stats</button>
+        </div>
+        <div id="capture-log" style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);max-height:80px;overflow-y:auto"></div>
+      </div>
+    </div>
+    <!-- Network Scanner -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Network Scanner</span></div>
+      <div class="pb">
+        <div class="form-group"><label class="form-label">Target (IP or CIDR)</label>
+          <input class="form-input" id="net-scan-target" placeholder="192.168.1.0/24"></div>
+        <div class="form-group"><label class="form-label">Port Range (for port scan)</label>
+          <input class="form-input" id="net-scan-ports" placeholder="1-1024" value="1-1024"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-accent" id="btn-host-scan">🔍 Host Discovery</button>
+          <button class="btn btn-blue" id="btn-port-scan">⚡ Port Scan</button>
+        </div>
+        <div id="scan-status" style="margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></div>
+      </div>
+    </div>
+  </div>
+  <!-- Scan Results -->
+  <div class="panel" id="scan-results-panel" style="display:none">
+    <div class="ph"><span class="pt">Scan Results</span><span id="scan-result-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></span></div>
+    <div class="pb" style="overflow-x:auto">
+      <table><thead><tr><th>IP Address</th><th>Hostname</th><th>Port</th><th>State</th><th>Service</th><th>Version</th></tr></thead>
+      <tbody id="scan-results-tbody"></tbody></table>
+    </div>
+  </div>
+  <!-- Live Packet Table -->
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">Live Packet Stream</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="form-input" id="pkt-filter" placeholder="Filter src/dst IP…" style="width:180px;font-size:11px;padding:5px 10px">
+        <select class="form-select" id="pkt-filter-proto" style="width:120px;font-size:10px;padding:5px 10px">
+          <option value="">All Protocols</option>
+          <option>TCP</option><option>UDP</option><option>Modbus</option>
+          <option>DNP3</option><option>EtherNet/IP</option>
+        </select>
+        <button class="btn" id="btn-load-packets">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="pb" style="overflow-x:auto;max-height:420px">
+      <table>
+        <thead><tr>
+          <th>Time</th><th>Src IP</th><th>Dst IP</th><th>Src Port</th><th>Dst Port</th>
+          <th>Proto</th><th>Len</th><th>Flags</th><th>ICS Proto</th><th>FC</th>
+          <th>Anomaly</th><th>Threat</th>
+        </tr></thead>
+        <tbody id="pkt-tbody"></tbody>
+      </table>
+      <div id="pkt-empty" class="empty-state">No packets captured yet. Start capture above.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ICS / SCADA -->
+<div class="page" id="page-ics">
+  <!-- Risk Assessment -->
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">ICS Risk Assessment — IEC 62443 / NIST SP 800-82</span>
+      <button class="btn btn-accent" id="btn-ics-risk">▶ Run Assessment</button>
+    </div>
+    <div class="pb">
+      <div class="stats-row" style="grid-template-columns:repeat(5,1fr)">
+        <div class="stat" id="ics-risk-overall-card">
+          <div class="stat-lbl">Overall Risk</div>
+          <div class="stat-val" id="ics-risk-overall">—</div>
+          <div id="ics-risk-level" style="font-size:10px;margin-top:4px;font-family:'IBM Plex Mono',monospace"></div>
+        </div>
+        <div class="stat s-blue"><div class="stat-lbl">Availability</div><div class="stat-val c-blue" id="ics-risk-avail">—</div></div>
+        <div class="stat s-orange"><div class="stat-lbl">Integrity</div><div class="stat-val c-orange" id="ics-risk-integ">—</div></div>
+        <div class="stat s-purple"><div class="stat-lbl">Confidentiality</div><div class="stat-val c-purple" id="ics-risk-conf">—</div></div>
+        <div class="stat s-green"><div class="stat-lbl">Authentication</div><div class="stat-val c-green" id="ics-risk-auth">—</div></div>
+      </div>
+      <div id="ics-risk-standards" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <!-- SIS Rules -->
+    <div class="panel">
+      <div class="ph"><span class="pt">SIS Trip Rules</span><span id="sis-rule-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></span></div>
+      <div class="pb" style="max-height:340px;overflow-y:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Protocol</th><th>Zone</th><th>Severity</th></tr></thead>
+          <tbody id="sis-rules-tbody"></tbody>
+        </table>
+        <div id="sis-rules-empty" class="empty-state">Loading SIS rules…</div>
+      </div>
+    </div>
+    <!-- SIS Events -->
+    <div class="panel">
+      <div class="ph"><span class="pt">SIS Trip Events</span>
+        <button class="btn btn-blue btn-sm" id="btn-load-sis-events">↺ Refresh</button>
+      </div>
+      <div class="pb" style="max-height:340px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Time</th><th>Rule</th><th>Severity</th><th>Src IP</th><th>Zone</th><th>Action</th></tr></thead>
+          <tbody id="sis-events-tbody"></tbody>
+        </table>
+        <div id="sis-events-empty" class="empty-state">No SIS trip events recorded.</div>
+      </div>
+    </div>
+  </div>
+  <!-- ICS Protocol Events -->
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">ICS Protocol Events</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="form-select" id="ics-proto-filter" style="width:160px;font-size:10px;padding:5px 10px">
+          <option value="">All Protocols</option>
+          <option>ICS_MODBUS</option><option>ICS_DNP3</option>
+          <option>ICS_ENIP</option><option>ICS_IEC104</option>
+        </select>
+        <button class="btn" id="btn-load-ics-events">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="pb" style="overflow-x:auto;max-height:350px">
+      <table>
+        <thead><tr><th>Time</th><th>Type</th><th>Src IP</th><th>Dst IP</th><th>Port</th><th>Severity</th><th>Message</th><th>MITRE</th></tr></thead>
+        <tbody id="ics-events-tbody"></tbody>
+      </table>
+      <div id="ics-events-empty" class="empty-state">No ICS protocol events yet. Start packet capture on the Network tab.</div>
+    </div>
+  </div>
+  <!-- ICS Packet Decode -->
+  <div class="panel">
+    <div class="ph"><span class="pt">ICS Packet Decode</span>
+      <button class="btn" id="btn-load-ics-packets">↺ Refresh</button>
+    </div>
+    <div class="pb" style="overflow-x:auto;max-height:320px">
+      <table>
+        <thead><tr><th>Time</th><th>Src</th><th>Dst</th><th>Protocol</th><th>FC</th><th>Function</th><th>Address</th><th>Value</th><th>Threat</th><th>Anomaly</th></tr></thead>
+        <tbody id="ics-pkts-tbody"></tbody>
+      </table>
+      <div id="ics-pkts-empty" class="empty-state">No ICS packets decoded yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- HONEYPOT / CONPOT -->
+<div class="page" id="page-honeypot">
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat s-red"><div class="stat-lbl">Total Interactions</div><div class="stat-val c-red" id="hp-total">0</div></div>
+    <div class="stat s-orange"><div class="stat-lbl">Unique Attackers</div><div class="stat-val c-orange" id="hp-ips">0</div></div>
+    <div class="stat s-blue"><div class="stat-lbl">Top Protocol Hit</div><div class="stat-val c-blue" id="hp-top-proto" style="font-size:14px">—</div></div>
+    <div class="stat s-purple"><div class="stat-lbl">Last Hit</div><div class="stat-val c-purple" id="hp-last" style="font-size:11px">—</div></div>
+  </div>
+  <div class="grid-2">
+    <!-- Honeypot Config -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Conpot / Honeypot Configuration</span></div>
+      <div class="pb">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:12px">
+          SCMS monitors the following ICS honeypot ports for interaction events.
+          Deploy Conpot on this host to generate realistic decoy traffic.
+        </div>
+        <table class="ip-table">
+          <thead><tr><th>Port</th><th>Protocol</th><th>Emulated Device</th><th>Hits</th></tr></thead>
+          <tbody id="hp-port-table"></tbody>
+        </table>
+        <div style="margin-top:16px;padding:12px;background:var(--surface);border-radius:5px;border:1px solid var(--border)">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent);margin-bottom:8px">▶ Deploy Conpot Honeypot</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);line-height:1.8">
+            pip3 install conpot<br>
+            sudo conpot --template default<br>
+            <span style="color:var(--text)"># Then set LOG_FILES to include conpot log path in .env</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Top Attackers -->
+    <div class="panel">
+      <div class="ph"><span class="pt">Top Attacker IPs</span>
+        <button class="btn btn-blue btn-sm" id="btn-load-hp">↺ Refresh</button>
+      </div>
+      <div class="pb">
+        <table class="ip-table">
+          <thead><tr><th>IP Address</th><th>Hits</th><th>Action</th></tr></thead>
+          <tbody id="hp-attacker-table"></tbody>
+        </table>
+        <div id="hp-attacker-empty" class="empty-state">No honeypot interactions yet.</div>
+      </div>
+    </div>
+  </div>
+  <!-- Interaction Feed -->
+  <div class="panel">
+    <div class="ph">
+      <span class="pt">Interaction Feed</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="form-select" id="hp-proto-filter" style="width:160px;font-size:10px;padding:5px 10px">
+          <option value="">All Protocols</option>
+          <option value="502">Modbus (502)</option>
+          <option value="20000">DNP3 (20000)</option>
+          <option value="102">S7/IEC104 (102)</option>
+          <option value="44818">EtherNet/IP (44818)</option>
+          <option value="47808">BACnet (47808)</option>
+        </select>
+        <button class="btn" id="btn-load-hp-events">↺ Refresh</button>
+      </div>
+    </div>
+    <div class="pb" style="overflow-x:auto;max-height:400px">
+      <table>
+        <thead><tr><th>Time</th><th>Src IP</th><th>Dst IP</th><th>Port</th><th>Protocol</th><th>Message</th><th>Severity</th><th>Action</th></tr></thead>
+        <tbody id="hp-events-tbody"></tbody>
+      </table>
+      <div id="hp-events-empty" class="empty-state">No interactions logged yet.</div>
     </div>
   </div>
 </div>
@@ -761,7 +1052,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
 <div id="drawer">
   <div class="dh">
     <span class="dt">Event Detail</span>
-    <button class="dc" onclick="closeDrawer()">✕</button>
+    <button class="dc" id="btn-close-drawer">✕</button>
   </div>
   <div class="dg" id="drawer-fields"></div>
   <div class="dr" id="drawer-raw"></div>
@@ -798,6 +1089,130 @@ document.addEventListener('DOMContentLoaded', () => {
   loadHealth();
   buildMitreMatrix();
   renderFimPaths();
+
+  // ── Nav tabs ──────────────────────────────────────────────────────────────
+  ['overview','logs','analytics','assets','network','ics','honeypot','fim','sca','vuln','mitre','response','admin'].forEach(name => {
+    const el = document.getElementById('nav-' + name);
+    if (el) el.addEventListener('click', function(){ showPage(name, this); });
+  });
+
+  // ── Nav-right buttons ─────────────────────────────────────────────────────
+  document.getElementById('btn-export-nav').addEventListener('click', exportCSV);
+  document.getElementById('btn-clear-nav').addEventListener('click', confirmClear);
+
+  // ── Log search ────────────────────────────────────────────────────────────
+  document.getElementById('log-search').addEventListener('input', filterLogs);
+
+  // ── Filter chips (data-filter) ────────────────────────────────────────────
+  document.querySelectorAll('.chip[data-filter]').forEach(el =>
+    el.addEventListener('click', function(){ setFilter(this, this.dataset.filter); }));
+
+  // ── Severity chips (data-sev) ─────────────────────────────────────────────
+  document.querySelectorAll('.chip[data-sev]').forEach(el =>
+    el.addEventListener('click', function(){ setSev(this, parseInt(this.dataset.sev)); }));
+
+  // ── Sortable table headers (data-sort) ────────────────────────────────────
+  document.querySelectorAll('th[data-sort]').forEach(el =>
+    el.addEventListener('click', function(){ sortTable(this.dataset.sort); }));
+
+  // ── FIM buttons ───────────────────────────────────────────────────────────
+  document.getElementById('btn-add-fim-path').addEventListener('click', addFimPath);
+  document.getElementById('btn-run-fim').addEventListener('click', runFim);
+  document.getElementById('btn-reset-fim-baseline').addEventListener('click', resetFimBaseline);
+
+  // ── SCA ───────────────────────────────────────────────────────────────────
+  document.getElementById('sca-filter').addEventListener('change', filterSca);
+  document.getElementById('btn-run-sca').addEventListener('click', runSca);
+
+  // ── Vulnerabilities ───────────────────────────────────────────────────────
+  document.getElementById('btn-run-vuln').addEventListener('click', runVuln);
+
+  // ── Active Response ───────────────────────────────────────────────────────
+  document.getElementById('btn-block-ip').addEventListener('click', blockIP);
+  document.getElementById('btn-unblock-ip').addEventListener('click', unblockIP);
+  document.getElementById('btn-save-auto-rules').addEventListener('click', saveAutoRules);
+  document.getElementById('btn-load-processes').addEventListener('click', loadProcesses);
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  document.getElementById('db-search-input').addEventListener('input', filterDbs);
+  document.getElementById('btn-load-dbs').addEventListener('click', loadDbs);
+  document.getElementById('btn-create-db').addEventListener('click', createDb);
+  document.getElementById('btn-add-log-path').addEventListener('click', addLogPath);
+  document.getElementById('btn-run-compliance').addEventListener('click', runComplianceCheck);
+  document.getElementById('btn-export-admin').addEventListener('click', exportCSV);
+  document.getElementById('csv-import-file').addEventListener('change', function(){ importCSV(this); });
+
+  // ── Assets ────────────────────────────────────────────────────────────────
+  document.getElementById('btn-load-assets').addEventListener('click', loadAssets);
+  document.getElementById('ast-search').addEventListener('input', filterAssets);
+  document.getElementById('ast-filter-zone').addEventListener('change', filterAssets);
+  document.getElementById('ast-filter-type').addEventListener('change', filterAssets);
+  document.getElementById('btn-save-asset').addEventListener('click', saveAsset);
+  document.getElementById('btn-close-ast-modal').addEventListener('click', () => {
+    document.getElementById('ast-modal').style.display = 'none';
+  });
+
+  // ── Network ───────────────────────────────────────────────────────────────
+  document.getElementById('btn-capture-start').addEventListener('click', startCapture);
+  document.getElementById('btn-capture-stop').addEventListener('click', stopCapture);
+  document.getElementById('btn-capture-refresh').addEventListener('click', () => { refreshCaptureStats(); loadPackets(); });
+  document.getElementById('btn-host-scan').addEventListener('click', runHostScan);
+  document.getElementById('btn-port-scan').addEventListener('click', runPortScan);
+  document.getElementById('btn-load-packets').addEventListener('click', loadPackets);
+  document.getElementById('pkt-filter').addEventListener('input', filterPackets);
+  document.getElementById('pkt-filter-proto').addEventListener('change', filterPackets);
+
+  // ── ICS ───────────────────────────────────────────────────────────────────
+  document.getElementById('btn-ics-risk').addEventListener('click', loadIcsRisk);
+  document.getElementById('btn-load-sis-events').addEventListener('click', loadSisEvents);
+  document.getElementById('btn-load-ics-events').addEventListener('click', loadIcsEvents);
+  document.getElementById('btn-load-ics-packets').addEventListener('click', loadIcsPackets);
+  document.getElementById('ics-proto-filter').addEventListener('change', filterIcsEvents);
+
+  // ── Honeypot ──────────────────────────────────────────────────────────────
+  document.getElementById('btn-load-hp').addEventListener('click', () => { loadHoneypotStats(); loadHoneypotEvents(); });
+  document.getElementById('btn-load-hp-events').addEventListener('click', loadHoneypotEvents);
+  document.getElementById('hp-proto-filter').addEventListener('change', filterHpEvents);
+
+  // ── Drawer close ──────────────────────────────────────────────────────────
+  document.getElementById('btn-close-drawer').addEventListener('click', closeDrawer);
+
+  // ── Event delegation ──────────────────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const row = e.target.closest('tr[data-log]');
+    if (row) { try { openDrawer(JSON.parse(row.dataset.log)); } catch(_){} return; }
+
+    const pgBtn = e.target.closest('button[data-page]');
+    if (pgBtn && !pgBtn.disabled) { changePage(parseInt(pgBtn.dataset.page)); return; }
+
+    const qbBtn = e.target.closest('[data-quick-block]');
+    if (qbBtn) { quickBlock(qbBtn.dataset.quickBlock); return; }
+
+    const fimBtn = e.target.closest('[data-remove-fim-idx]');
+    if (fimBtn) { removeFimPath(parseInt(fimBtn.dataset.removeFimIdx)); return; }
+
+    const logBtn = e.target.closest('[data-remove-log-idx]');
+    if (logBtn) { removeLogPath(parseInt(logBtn.dataset.removeLogIdx)); return; }
+
+    const ubEl = e.target.closest('[data-unblock-ip]');
+    if (ubEl) { unblockIPDirect(ubEl.dataset.unblockIp); return; }
+
+    const killBtn = e.target.closest('[data-kill-pid]');
+    if (killBtn) { killProcess(parseInt(killBtn.dataset.killPid), killBtn.dataset.killName); return; }
+
+    const mitreCard = e.target.closest('[data-mitre-url]');
+    if (mitreCard) { window.open(mitreCard.dataset.mitreUrl, '_blank'); return; }
+
+    const etypeRow = e.target.closest('[data-etype]');
+    if (etypeRow) { typeFilterClick(etypeRow.dataset.etype); return; }
+
+    const dbItem = e.target.closest('[data-select-db]');
+    if (dbItem) { selectDb(dbItem.dataset.selectDb); return; }
+
+    // Asset edit buttons (data-edit-asset)
+    const astBtn = e.target.closest('[data-edit-asset]');
+    if (astBtn) { try { openAssetModal(JSON.parse(astBtn.dataset.editAsset)); } catch(_){} return; }
+  });
 });
 
 function updateClock() {
@@ -816,6 +1231,10 @@ function showPage(name, el) {
   if (name === 'analytics') buildAnalytics();
   if (name === 'mitre') buildMitreMatrix();
   if (name === 'admin') { loadDbs(); loadInventory(); loadHealth(); }
+  if (name === 'assets') loadAssets();
+  if (name === 'network') { loadInterfaces(); loadPackets(); }
+  if (name === 'ics') { loadSisRules(); loadSisEvents(); loadIcsEvents(); loadIcsPackets(); loadIcsRisk(); }
+  if (name === 'honeypot') { loadHoneypotStats(); loadHoneypotEvents(); }
 }
 
 // FETCH STATS
@@ -877,7 +1296,7 @@ function renderEtypes(etypes) {
   const c = document.getElementById('sb-etypes');
   if (!etypes || !etypes.length) { c.innerHTML = ''; return; }
   c.innerHTML = etypes.map(e =>
-    `<div class="etype-row ${activeTypeFilter===e.name?'active':''}" onclick="typeFilterClick('${e.name}')">
+    `<div class="etype-row ${activeTypeFilter===e.name?'active':''}" data-etype="${e.name}">
       <span class="etype-name"><span class="etype-dot" style="background:${e.color}"></span>${e.name}</span>
       <span class="etype-count">${e.count}</span>
     </div>`
@@ -900,7 +1319,7 @@ function renderSidebarBlocked() {
   c.innerHTML = ips.map(ip =>
     `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border)">
       <span style="color:var(--red)">${ip}</span>
-      <span style="cursor:pointer;color:var(--muted)" onclick="unblockIPDirect('${ip}')">✕</span>
+      <span style="cursor:pointer;color:var(--muted)" data-unblock-ip="${ip}">✕</span>
     </div>`
   ).join('');
 }
@@ -957,7 +1376,7 @@ function renderLogTable() {
 
 function rowHtml(l) {
   const rc = l.threat_level>=3 ? 'r-red' : l.threat_level>=2 ? 'r-orange' : '';
-  return `<tr class="lr ${rc}" onclick='openDrawer(${JSON.stringify(l)})'>
+  return `<tr class="lr ${rc}" data-log='${JSON.stringify(l).replace(/'/g,"&#39;")}'>
     <td class="col-time">${l.timestamp}</td>
     <td class="col-type"><span class="badge badge-${l.eventtype}">${l.eventtype}</span></td>
     <td class="col-host" title="${l.hostname}">${l.hostname}</td>
@@ -975,12 +1394,12 @@ function renderPagination() {
   const start = (curPage-1)*pageSize+1, end = Math.min(curPage*pageSize, total);
   document.getElementById('pg-info').textContent = `Showing ${total?start:0}–${end} of ${total}`;
   const c = document.getElementById('pg-btns');
-  let html = `<button class="pg-btn" onclick="changePage(${curPage-1})" ${curPage<=1?'disabled':''}>‹ Prev</button>`;
+  let html = `<button class="pg-btn" data-page="${curPage-1}" ${curPage<=1?'disabled':''}>‹ Prev</button>`;
   pageRange(curPage, pages).forEach(p => {
     if (p==='…') html += `<button class="pg-btn" disabled>…</button>`;
-    else html += `<button class="pg-btn ${p===curPage?'cur':''}" onclick="changePage(${p})">${p}</button>`;
+    else html += `<button class="pg-btn ${p===curPage?'cur':''}" data-page="${p}">${p}</button>`;
   });
-  html += `<button class="pg-btn" onclick="changePage(${curPage+1})" ${curPage>=pages?'disabled':''}>Next ›</button>`;
+  html += `<button class="pg-btn" data-page="${curPage+1}" ${curPage>=pages?'disabled':''}>Next ›</button>`;
   c.innerHTML = html;
 }
 
@@ -1103,7 +1522,7 @@ async function buildAnalytics() {
     document.getElementById('an-ip-table').innerHTML = (ips||[]).map(([ip,count]) =>
       `<tr><td style="color:var(--accent)">${ip}</td><td>${count}</td>
        <td><span class="tag ${count>20?'tag-crit':count>10?'tag-high':'tag-med'}">${count>20?'CRITICAL':count>10?'HIGH':'MEDIUM'}</span></td>
-       <td><button class="btn btn-red btn-sm" onclick="quickBlock('${ip}')">Block</button></td></tr>`
+       <td><button class="btn btn-red btn-sm" data-quick-block="${ip}">Block</button></td></tr>`
     ).join('') || '<tr><td colspan="4" class="empty-state">No attacker IPs</td></tr>';
 
     const sudoResp = await fetch('/api/sudo-users');
@@ -1158,7 +1577,7 @@ let fimBaseline = {};
 function renderFimPaths() {
   document.getElementById('fim-paths').innerHTML = fimPaths.map((p,i) =>
     `<div class="path-item"><div style="display:flex;align-items:center;gap:8px"><div class="path-status"></div><span>${p}</span></div>
-     <button class="btn btn-red btn-sm" onclick="removeFimPath(${i})">Remove</button></div>`
+     <button class="btn btn-red btn-sm" data-remove-fim-idx="${i}">Remove</button></div>`
   ).join('') || '<div style="color:var(--muted);font-size:10px">No paths configured</div>';
 }
 
@@ -1299,7 +1718,7 @@ function buildMitreMatrix() {
 
   document.getElementById('mitre-cards').innerHTML = Object.values(techniques)
     .sort((a,b)=>b.count-a.count)
-    .map(t => `<div class="mitre-card" onclick="window.open('https://attack.mitre.org/techniques/${t.id.replace('.','/').replace('.','/') }/', '_blank')">
+    .map(t => `<div class="mitre-card" data-mitre-url="https://attack.mitre.org/techniques/${t.id.replace('.','/').replace('.','/') }/">
       <div class="mitre-id">${t.id}</div>
       <div class="mitre-name">${t.name}</div>
       <div class="mitre-tactic">${t.tactic}</div>
@@ -1386,7 +1805,7 @@ function renderBlockedTable() {
     `<tr><td style="color:var(--red);font-family:'IBM Plex Mono',monospace">${ip}</td>
      <td>${data.reason||'Manual'}</td>
      <td style="color:var(--muted)">${(data.time||'').slice(0,19)}</td>
-     <td><button class="btn btn-sm" onclick="unblockIPDirect('${ip}')">Unblock</button></td></tr>`
+     <td><button class="btn btn-sm" data-unblock-ip="${ip}">Unblock</button></td></tr>`
   ).join('');
 }
 
@@ -1423,7 +1842,7 @@ async function loadProcesses() {
         <td>${p.cpu}</td>
         <td>${p.mem}</td>
         <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="${escHtml(p.cmd)}">${escHtml(p.cmd)}</td>
-        <td><button class="btn btn-red btn-sm" onclick="killProcess(${p.pid},'${escHtml(p.cmd).slice(0,20)}')">Kill</button></td>
+        <td><button class="btn btn-red btn-sm" data-kill-pid="${p.pid}" data-kill-name="${escHtml(p.cmd).slice(0,20)}">Kill</button></td>
       </tr>`
     ).join('');
     arLogEntry(`Process list refreshed: ${procs.length} processes`,'info');
@@ -1442,15 +1861,14 @@ async function killProcess(pid, name) {
 
 // COMPLIANCE
 async function runComplianceCheck() {
-  if (!scaChecksCache.length) {
-    toast('Run Security Config Assessment first (Config Audit tab)','err');
-    return;
-  }
+  toast('Running compliance checks…','info');
   try {
     const r = await fetch('/api/compliance', { method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({checks: scaChecksCache}) });
+      body:JSON.stringify({}) });
     const d = await r.json();
-    renderComplianceScores(d);
+    if (d.error) { toast('Compliance error: '+d.error,'err'); return; }
+    scaChecksCache = d.checks || [];
+    renderComplianceScores(d.scores || d);
     toast('Compliance scores updated','ok');
   } catch(e) { toast('Compliance check failed: '+e.message,'err'); }
 }
@@ -1484,7 +1902,7 @@ async function loadDbs() {
 function renderDbList(dbs) {
   const curDb = '{{ current_db }}';
   document.getElementById('db-list').innerHTML = (dbs||[]).map(d =>
-    `<div class="db-item ${d===curDb?'active-db':''}" onclick="selectDb('${d}')">
+    `<div class="db-item ${d===curDb?'active-db':''}" data-select-db="${d}">
       <span class="db-name">${d}</span>
       ${d===curDb?'<span style="font-family:\'IBM Plex Mono\',monospace;font-size:9px;color:var(--accent)">ACTIVE</span>':''}
     </div>`
@@ -1524,7 +1942,7 @@ function renderLogPaths() {
   document.getElementById('log-paths').innerHTML = logPaths.map((p,i) =>
     `<div class="path-item">
       <div style="display:flex;align-items:center;gap:8px"><div class="path-status"></div><span>${p}</span></div>
-      <button class="btn btn-red btn-sm" onclick="removeLogPath(${i})">Remove</button>
+      <button class="btn btn-red btn-sm" data-remove-log-idx="${i}">Remove</button>
     </div>`
   ).join('') || '<div style="color:var(--muted);font-size:10px">No paths configured</div>';
 }
@@ -1633,6 +2051,441 @@ async function confirmClear() {
     else toast(d.message,'err');
   } catch(e) { toast('Clear failed: '+e.message,'err'); }
 }
+// ═══════════════════════════════════════════════════════════════════
+// ASSET MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+let allAssets = [];
+
+async function loadAssets() {
+  try {
+    const r = await fetch('/api/assets');
+    allAssets = await r.json();
+    renderAssets(allAssets);
+    // populate zone filter
+    const zones = [...new Set(allAssets.map(a=>a.zone).filter(Boolean))];
+    const sel = document.getElementById('ast-filter-zone');
+    sel.innerHTML = '<option value="">All Zones</option>' +
+      zones.map(z=>`<option>${z}</option>`).join('');
+    // stats
+    setNum('ast-total', allAssets.length);
+    setNum('ast-ics', allAssets.filter(a=>a.is_ics).length);
+    setNum('ast-highrisk', allAssets.filter(a=>a.threat_score>=70).length);
+    setNum('ast-zones', zones.length);
+  } catch(e) { toast('Asset load failed: '+e.message,'err'); }
+}
+
+function renderAssets(assets) {
+  const tb = document.getElementById('ast-tbody');
+  const empty = document.getElementById('ast-empty');
+  if (!assets.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  const threatColor = s => s>=80?'var(--red)':s>=50?'var(--orange)':'var(--green)';
+  tb.innerHTML = assets.map(a => `<tr>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${a.ip||'—'}</td>
+    <td>${a.hostname||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">${a.mac||'—'}</td>
+    <td>${a.vendor||'—'}</td>
+    <td>${a.type||'—'}</td>
+    <td style="font-size:10px">${a.os||'—'}</td>
+    <td>${a.zone||'—'}</td>
+    <td><span class="sev-badge sev-${a.criticality==='CRITICAL'?3:a.criticality==='HIGH'?2:a.criticality==='MEDIUM'?1:0}">${a.criticality||'—'}</span></td>
+    <td>${a.ics_proto?`<span style="color:var(--blue);font-family:'IBM Plex Mono',monospace;font-size:9px">${a.ics_proto}</span>`:'—'}</td>
+    <td><span style="color:${threatColor(a.threat_score||0)};font-family:'IBM Plex Mono',monospace">${a.threat_score||0}</span></td>
+    <td style="font-size:10px;color:var(--muted)">${(a.last_seen||'').slice(0,16)}</td>
+    <td><button class="btn btn-sm" data-edit-asset='${JSON.stringify(a)}'>Edit</button></td>
+  </tr>`).join('');
+}
+
+function filterAssets() {
+  const q = document.getElementById('ast-search').value.toLowerCase();
+  const zone = document.getElementById('ast-filter-zone').value;
+  const type = document.getElementById('ast-filter-type').value;
+  let list = allAssets.filter(a => {
+    const matchQ = !q || (a.ip||'').includes(q)||(a.hostname||'').toLowerCase().includes(q)||(a.vendor||'').toLowerCase().includes(q);
+    const matchZ = !zone || a.zone===zone;
+    const matchT = !type || (type==='ICS'?a.is_ics:(type==='IT'?!a.is_ics:true));
+    return matchQ && matchZ && matchT;
+  });
+  renderAssets(list);
+}
+
+function openAssetModal(asset) {
+  document.getElementById('ast-edit-id').value = asset.id;
+  document.getElementById('ast-edit-crit').value = asset.criticality||'MEDIUM';
+  document.getElementById('ast-edit-zone').value = asset.zone||'';
+  document.getElementById('ast-edit-notes').value = asset.notes||'';
+  document.getElementById('ast-modal').style.display='flex';
+}
+
+async function saveAsset() {
+  const id    = document.getElementById('ast-edit-id').value;
+  const crit  = document.getElementById('ast-edit-crit').value;
+  const zone  = document.getElementById('ast-edit-zone').value;
+  const notes = document.getElementById('ast-edit-notes').value;
+  try {
+    const r = await fetch('/api/assets/update', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id, criticality:crit, zone, notes}) });
+    const d = await r.json();
+    if (d.ok) { toast('Asset updated','ok'); document.getElementById('ast-modal').style.display='none'; loadAssets(); }
+    else toast(d.error,'err');
+  } catch(e) { toast('Save failed: '+e.message,'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// NETWORK ANALYSIS
+// ═══════════════════════════════════════════════════════════════════
+let allPackets = [];
+
+async function loadInterfaces() {
+  try {
+    const r = await fetch('/api/capture/interfaces');
+    const d = await r.json();
+    const sel = document.getElementById('net-iface');
+    sel.innerHTML = (d.interfaces||['eth0']).map(i=>`<option>${i}</option>`).join('');
+  } catch(e) {}
+}
+
+async function startCapture() {
+  const iface = document.getElementById('net-iface').value;
+  try {
+    const r = await fetch('/api/capture/start', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({interface:iface}) });
+    const d = await r.json();
+    capLog(d.message||d.error);
+    toast(d.message||'Capture started','ok');
+    document.getElementById('net-status').textContent='RUNNING';
+    document.getElementById('net-status').style.color='var(--green)';
+  } catch(e) { toast('Start failed: '+e.message,'err'); }
+}
+
+async function stopCapture() {
+  try {
+    const r = await fetch('/api/capture/stop', { method:'POST' });
+    const d = await r.json();
+    capLog(d.message);
+    toast('Capture stopped','info');
+    document.getElementById('net-status').textContent='IDLE';
+    document.getElementById('net-status').style.color='var(--muted)';
+  } catch(e) { toast('Stop failed: '+e.message,'err'); }
+}
+
+async function refreshCaptureStats() {
+  try {
+    const r = await fetch('/api/capture/stats');
+    const d = await r.json();
+    setNum('net-pkts', d.packets_captured||0);
+    document.getElementById('net-status').textContent = d.running?'RUNNING':'IDLE';
+    document.getElementById('net-status').style.color = d.running?'var(--green)':'var(--muted)';
+  } catch(e) {}
+}
+
+function capLog(msg) {
+  const c = document.getElementById('capture-log');
+  const t = new Date().toTimeString().slice(0,8);
+  c.innerHTML = `<div>[${t}] ${escHtml(msg||'')}</div>` + c.innerHTML;
+}
+
+async function loadPackets() {
+  try {
+    const r = await fetch('/api/packets');
+    allPackets = await r.json();
+    renderPackets(allPackets);
+    setNum('net-anomalies', allPackets.filter(p=>p.anomaly).length);
+    setNum('net-ics-pkts', allPackets.filter(p=>p.ics_proto).length);
+    setNum('net-pkts', allPackets.length);
+  } catch(e) {}
+}
+
+function renderPackets(pkts) {
+  const tb = document.getElementById('pkt-tbody');
+  const empty = document.getElementById('pkt-empty');
+  if (!pkts.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tb.innerHTML = pkts.map(p => `<tr ${p.anomaly?'class="r-orange"':''}>
+    <td style="font-size:10px;color:var(--muted)">${(p.time||'').slice(11,19)}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${p.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace">${p.dst_ip||'—'}</td>
+    <td style="color:var(--muted)">${p.src_port||''}</td>
+    <td style="color:var(--muted)">${p.dst_port||''}</td>
+    <td><span class="badge badge-SYS">${p.proto||'—'}</span></td>
+    <td style="color:var(--muted)">${p.len||0}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px">${p.flags||''}</td>
+    <td>${p.ics_proto?`<span style="color:var(--blue);font-size:9px">${p.ics_proto}</span>`:'—'}</td>
+    <td style="font-size:9px">${p.ics_fc!=null?p.ics_fc:''}</td>
+    <td>${p.anomaly?`<span style="color:var(--orange);font-size:9px" title="${escHtml(p.anomaly_reason||'')}">⚠</span>`:'—'}</td>
+    <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'}">${p.threat||0}</td>
+  </tr>`).join('');
+}
+
+function filterPackets() {
+  const q = document.getElementById('pkt-filter').value.toLowerCase();
+  const proto = document.getElementById('pkt-filter-proto').value;
+  renderPackets(allPackets.filter(p => {
+    const mq = !q||(p.src_ip||'').includes(q)||(p.dst_ip||'').includes(q);
+    const mp = !proto||(p.proto===proto||p.ics_proto===proto);
+    return mq && mp;
+  }));
+}
+
+async function runHostScan() {
+  const target = document.getElementById('net-scan-target').value.trim();
+  if (!target) { toast('Enter a target','err'); return; }
+  document.getElementById('scan-status').textContent = 'Scanning '+target+'…';
+  document.getElementById('btn-host-scan').disabled=true;
+  try {
+    const r = await fetch('/api/network/scan', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({target}) });
+    const d = await r.json();
+    if (d.error) { toast(d.error,'err'); } else {
+      renderScanResults(d.hosts, [], target);
+      toast(`Found ${d.count} host(s)`,'ok');
+    }
+  } catch(e) { toast('Scan failed: '+e.message,'err'); }
+  document.getElementById('scan-status').textContent='';
+  document.getElementById('btn-host-scan').disabled=false;
+}
+
+async function runPortScan() {
+  const target = document.getElementById('net-scan-target').value.trim();
+  const ports  = document.getElementById('net-scan-ports').value.trim()||'1-1024';
+  if (!target) { toast('Enter a target','err'); return; }
+  document.getElementById('scan-status').textContent = 'Port scanning '+target+':'+ports+'…';
+  document.getElementById('btn-port-scan').disabled=true;
+  try {
+    const r = await fetch('/api/network/portscan', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body:JSON.stringify({target,ports}) });
+    const d = await r.json();
+    if (d.error) { toast(d.error,'err'); } else {
+      renderScanResults([], d.ports, target);
+      toast(`Found ${d.ports.length} open port(s)`,'ok');
+    }
+  } catch(e) { toast('Port scan failed: '+e.message,'err'); }
+  document.getElementById('scan-status').textContent='';
+  document.getElementById('btn-port-scan').disabled=false;
+}
+
+function renderScanResults(hosts, ports, target) {
+  const panel = document.getElementById('scan-results-panel');
+  const tb = document.getElementById('scan-results-tbody');
+  const count = document.getElementById('scan-result-count');
+  panel.style.display='block';
+  if (hosts.length) {
+    count.textContent = `${hosts.length} host(s) up — ${target}`;
+    tb.innerHTML = hosts.map(h=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${h.ip}</td>
+      <td>${h.hostname||'—'}</td>
+      <td colspan="4"><span class="tag tag-low">UP</span></td>
+    </tr>`).join('');
+  } else if (ports.length) {
+    count.textContent = `${ports.length} open port(s) — ${target}`;
+    tb.innerHTML = ports.map(p=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${target}</td>
+      <td>—</td>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--blue)">${p.port}</td>
+      <td><span class="tag tag-low">${p.state}</span></td>
+      <td>${p.service||'—'}</td>
+      <td style="font-size:10px;color:var(--muted)">${p.version||''}</td>
+    </tr>`).join('');
+  } else {
+    count.textContent = 'No results';
+    tb.innerHTML = '<tr><td colspan="6" class="empty-state">No hosts/ports found</td></tr>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ICS / SCADA
+// ═══════════════════════════════════════════════════════════════════
+async function loadIcsRisk() {
+  try {
+    const r = await fetch('/api/ics/risk-assessment');
+    const d = await r.json();
+    if (d.error) return;
+    document.getElementById('ics-risk-overall').textContent = d.overall+'%';
+    const lvlEl = document.getElementById('ics-risk-level');
+    const colors = {CRITICAL:'var(--red)',HIGH:'var(--orange)',MEDIUM:'var(--yellow)',LOW:'var(--green)'};
+    lvlEl.textContent = d.risk_level;
+    lvlEl.style.color = colors[d.risk_level]||'var(--text)';
+    document.getElementById('ics-risk-avail').textContent  = (d.domains.Availability||0)+'%';
+    document.getElementById('ics-risk-integ').textContent  = (d.domains.Integrity||0)+'%';
+    document.getElementById('ics-risk-conf').textContent   = (d.domains.Confidentiality||0)+'%';
+    document.getElementById('ics-risk-auth').textContent   = (d.domains.Authentication||0)+'%';
+    document.getElementById('ics-risk-standards').textContent =
+      'Standards: ' + (d.standards||[]).join(' · ');
+  } catch(e) {}
+}
+
+async function loadSisRules() {
+  try {
+    const r = await fetch('/api/ics/sis-rules');
+    const rules = await r.json();
+    document.getElementById('sis-rule-count').textContent = rules.length+' rules';
+    const sevColor = s=>s==='CRITICAL'?'var(--red)':s==='HIGH'?'var(--orange)':'var(--yellow)';
+    const tb = document.getElementById('sis-rules-tbody');
+    document.getElementById('sis-rules-empty').style.display='none';
+    tb.innerHTML = rules.map(r=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent);font-size:10px">${r.id}</td>
+      <td style="font-size:11px">${r.name}</td>
+      <td><span class="badge badge-SYS">${r.protocol}</span></td>
+      <td style="font-size:10px;color:var(--muted)">${r.zone}</td>
+      <td><span style="color:${sevColor(r.severity)};font-family:'IBM Plex Mono',monospace;font-size:9px">${r.severity}</span></td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+async function loadSisEvents() {
+  try {
+    const r = await fetch('/api/ics/sis-events');
+    const events = await r.json();
+    const tb = document.getElementById('sis-events-tbody');
+    const empty = document.getElementById('sis-events-empty');
+    if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    const sevColor = s=>s==='CRITICAL'?'r-red':s==='HIGH'?'r-orange':'';
+    tb.innerHTML = events.map(e=>`<tr class="${e.severity==='CRITICAL'?'r-red':e.severity==='HIGH'?'r-orange':''}">
+      <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent)">${e.rule_id}</td>
+      <td><span style="color:${e.severity==='CRITICAL'?'var(--red)':'var(--orange)'};font-size:9px">${e.severity}</span></td>
+      <td style="font-family:'IBM Plex Mono',monospace">${e.src_ip||'—'}</td>
+      <td style="font-size:10px">${e.zone||'—'}</td>
+      <td style="font-size:10px;color:var(--muted)" title="${escHtml(e.action||'')}">${escHtml((e.action||'').slice(0,40))}…</td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+let allIcsEvents = [];
+async function loadIcsEvents() {
+  try {
+    const r = await fetch('/api/ics/events');
+    allIcsEvents = await r.json();
+    renderIcsEvents(allIcsEvents);
+  } catch(e) {}
+}
+
+function renderIcsEvents(events) {
+  const tb = document.getElementById('ics-events-tbody');
+  const empty = document.getElementById('ics-events-empty');
+  if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tb.innerHTML = events.map(e=>`<tr>
+    <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
+    <td><span class="badge badge-${e.type}">${e.type}</span></td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${e.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace">${e.dst_ip||'—'}</td>
+    <td style="color:var(--muted)">${e.port||'—'}</td>
+    <td><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'—'}</span></td>
+    <td style="font-size:10px" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--blue)">${e.mitre||''}</td>
+  </tr>`).join('');
+}
+
+function filterIcsEvents() {
+  const proto = document.getElementById('ics-proto-filter').value;
+  renderIcsEvents(allIcsEvents.filter(e=>!proto||e.type===proto));
+}
+
+async function loadIcsPackets() {
+  try {
+    const r = await fetch('/api/ics/packets');
+    const pkts = await r.json();
+    const tb = document.getElementById('ics-pkts-tbody');
+    const empty = document.getElementById('ics-pkts-empty');
+    if (!pkts.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+    empty.style.display='none';
+    tb.innerHTML = pkts.map(p=>`<tr ${p.anomaly?'class="r-orange"':''}>
+      <td style="font-size:10px;color:var(--muted)">${(p.time||'').slice(11,19)}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${p.src_ip||'—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace">${p.dst_ip||'—'}</td>
+      <td><span style="color:var(--blue);font-size:9px">${p.proto||'—'}</span></td>
+      <td style="color:var(--muted)">${p.fc!=null?p.fc:''}</td>
+      <td style="font-size:10px">${p.fn||'—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px">${p.addr!=null?p.addr:'—'}</td>
+      <td style="font-size:10px">${p.val||'—'}</td>
+      <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'}">${p.threat||0}</td>
+      <td>${p.anomaly?`<span style="color:var(--orange)" title="${escHtml(p.reason||'')}">⚠ YES</span>`:'—'}</td>
+    </tr>`).join('');
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HONEYPOT
+// ═══════════════════════════════════════════════════════════════════
+const HP_PORTS = {
+  502:  {proto:'Modbus TCP',    device:'Siemens S7-300 PLC'},
+  20000:{proto:'DNP3',          device:'SEL-351 Protection Relay'},
+  102:  {proto:'S7/IEC104',     device:'Siemens S7-400'},
+  44818:{proto:'EtherNet/IP',   device:'Allen-Bradley CompactLogix'},
+  47808:{proto:'BACnet/IP',     device:'Johnson Controls BAS'},
+};
+
+async function loadHoneypotStats() {
+  try {
+    const r = await fetch('/api/honeypot/stats');
+    const d = await r.json();
+    setNum('hp-total', d.total||0);
+    setNum('hp-ips', (d.top_ips||[]).length);
+    if (d.proto_hits&&d.proto_hits.length) {
+      document.getElementById('hp-top-proto').textContent = d.proto_hits[0][0];
+    }
+    // Port table
+    const pb = document.getElementById('hp-port-table');
+    const hitMap = {};
+    (d.proto_hits||[]).forEach(([p,c])=>{ hitMap[p]=c; });
+    pb.innerHTML = Object.entries(HP_PORTS).map(([port,info])=>`<tr>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--blue)">${port}</td>
+      <td>${info.proto}</td>
+      <td style="font-size:10px;color:var(--muted)">${info.device}</td>
+      <td style="color:${hitMap[info.proto]>0?'var(--red)':'var(--muted)'}">${hitMap[info.proto]||0}</td>
+    </tr>`).join('');
+    // Attacker table
+    const ab = document.getElementById('hp-attacker-table');
+    const attackerEmpty = document.getElementById('hp-attacker-empty');
+    if (!(d.top_ips||[]).length) { ab.innerHTML=''; attackerEmpty.style.display='block'; }
+    else {
+      attackerEmpty.style.display='none';
+      ab.innerHTML = (d.top_ips||[]).map(([ip,count])=>`<tr>
+        <td style="font-family:'IBM Plex Mono',monospace;color:var(--red)">${ip}</td>
+        <td>${count}</td>
+        <td><button class="btn btn-red btn-sm" data-quick-block="${ip}">Block</button></td>
+      </tr>`).join('');
+    }
+  } catch(e) {}
+}
+
+let allHpEvents = [];
+async function loadHoneypotEvents() {
+  try {
+    const r = await fetch('/api/honeypot/events');
+    allHpEvents = await r.json();
+    renderHpEvents(allHpEvents);
+    if (allHpEvents.length) {
+      document.getElementById('hp-last').textContent = (allHpEvents[0].time||'').slice(0,16);
+    }
+  } catch(e) {}
+}
+
+function renderHpEvents(events) {
+  const tb = document.getElementById('hp-events-tbody');
+  const empty = document.getElementById('hp-events-empty');
+  if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tb.innerHTML = events.map(e=>`<tr>
+    <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--red)">${e.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace">${e.dst_ip||'—'}</td>
+    <td style="color:var(--blue)">${e.port||'—'}</td>
+    <td><span class="badge badge-SYS">${e.proto||'—'}</span></td>
+    <td style="font-size:10px" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
+    <td><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'INFO'}</span></td>
+    <td><button class="btn btn-red btn-sm" data-quick-block="${e.src_ip}">Block</button></td>
+  </tr>`).join('');
+}
+
+function filterHpEvents() {
+  const port = document.getElementById('hp-proto-filter').value;
+  renderHpEvents(allHpEvents.filter(e=>!port||String(e.port)===port));
+}
+
 </script>
 </body>
 </html>

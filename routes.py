@@ -24,20 +24,13 @@ from server.auth import (
 )
 from server.security import check_rate_limit, get_csp_nonce, sanitize_str
 import db
-import parser as log_parser
+from server import parser as log_parser
 
-log = logging.getLogger("scms.routes")
+import re
 
 
 # ── Route registration ────────────────────────────────────────────────────────
 def register_routes(app: Flask):
-
-    # ── Health check (no auth) ────────────────────────────────────────────────
-    @app.route("/health")
-    def health():
-        return jsonify({"status": "ok", "service": "scms"}), 200
-
-    # ── Login (GET + POST) ────────────────────────────────────────────────────
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if session.get("logged_in"):
@@ -538,6 +531,408 @@ def register_routes(app: Flask):
             return jsonify({"ok": True, "imported": imported}), 200
         except Exception as e:
             log.error("import_csv: %s", e)
+            return jsonify({"error": str(e)}), 500
+
+    # ── /health — with real DB check ─────────────────────────────────────────
+    @app.route("/health")
+    def health():
+        db_status = "unreachable"
+        try:
+            db.query("SELECT 1")
+            db_status = "reachable"
+        except Exception:
+            pass
+        return jsonify({"status": "ok", "service": "scms", "db": db_status}), 200
+
+    # ── /api/capture/interfaces ───────────────────────────────────────────────
+    @app.route("/api/capture/interfaces")
+    @api_login_required
+    def api_capture_interfaces():
+        try:
+            from server.capture import list_interfaces
+            return jsonify({"interfaces": list_interfaces()}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/capture/start ────────────────────────────────────────────────────
+    @app.route("/api/capture/start", methods=["POST"])
+    @api_login_required
+    def api_capture_start():
+        try:
+            from server.capture import start_capture
+            data  = request.get_json(silent=True) or {}
+            iface = sanitize_str(data.get("interface","eth0"), 32)
+            ok, msg = start_capture(iface)
+            return jsonify({"ok": ok, "message": msg}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/capture/stop ─────────────────────────────────────────────────────
+    @app.route("/api/capture/stop", methods=["POST"])
+    @api_login_required
+    def api_capture_stop():
+        try:
+            from server.capture import stop_capture
+            ok, msg = stop_capture()
+            return jsonify({"ok": ok, "message": msg}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/capture/stats ────────────────────────────────────────────────────
+    @app.route("/api/capture/stats")
+    @api_login_required
+    def api_capture_stats():
+        try:
+            from server.capture import get_stats
+            return jsonify(get_stats()), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/packets — live packet table ─────────────────────────────────────
+    @app.route("/api/packets")
+    @api_login_required
+    def api_packets():
+        try:
+            rows = db.query("""
+                SELECT pktid, CaptureTime, SrcIp, DstIp, SrcPort, DstPort,
+                       Protocol, Length, TTL, Flags, Interface,
+                       ICSProtocol, ICSFunctionCode, ICSFunctionName,
+                       ICSAddress, ICSValue, Anomaly, AnomalyReason,
+                       GeoCountry, GeoCity, ThreatScore
+                FROM Packets ORDER BY CaptureTime DESC LIMIT 500
+            """)
+            pkts = [{
+                "id": r[0], "time": r[1].isoformat() if r[1] else None,
+                "src_ip": r[2], "dst_ip": r[3], "src_port": r[4], "dst_port": r[5],
+                "proto": r[6], "len": r[7], "ttl": r[8], "flags": r[9], "iface": r[10],
+                "ics_proto": r[11], "ics_fc": r[12], "ics_fn": r[13],
+                "ics_addr": r[14], "ics_val": r[15],
+                "anomaly": r[16], "anomaly_reason": r[17],
+                "geo_country": r[18], "geo_city": r[19], "threat": r[20],
+            } for r in rows]
+            return jsonify(pkts), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/network/scan — nmap-style host discovery ─────────────────────────
+    @app.route("/api/network/scan", methods=["POST"])
+    @api_login_required
+    def api_network_scan():
+        try:
+            data   = request.get_json(silent=True) or {}
+            target = sanitize_str(data.get("target", ""), 64)
+            if not target:
+                return jsonify({"error": "target required"}), 400
+            # Basic validation — only allow CIDR or single IP
+            import re
+            if not re.match(r'^[\d./]+$', target):
+                return jsonify({"error": "Invalid target"}), 400
+            # Try nmap first, fall back to ping sweep
+            result = subprocess.run(
+                ["nmap", "-sn", "-T4", "--open", "-oG", "-", target],
+                capture_output=True, text=True, timeout=60
+            )
+            hosts = []
+            for line in result.stdout.splitlines():
+                if "Host:" in line and "Status: Up" in line:
+                    parts = line.split()
+                    ip = parts[1] if len(parts) > 1 else ""
+                    hostname = parts[2].strip("()") if len(parts) > 2 else ""
+                    hosts.append({"ip": ip, "hostname": hostname, "status": "up"})
+            return jsonify({"hosts": hosts, "target": target, "count": len(hosts)}), 200
+        except FileNotFoundError:
+            # nmap not installed — ping sweep fallback
+            import ipaddress, concurrent.futures
+            try:
+                net = ipaddress.ip_network(target, strict=False)
+                ips = [str(h) for h in net.hosts()][:254]
+            except Exception:
+                ips = [target]
+            def _ping(ip):
+                r = subprocess.run(["ping","-c","1","-W","1",ip],
+                                   capture_output=True, timeout=3)
+                return {"ip": ip, "hostname": "", "status": "up"} if r.returncode == 0 else None
+            with concurrent.futures.ThreadPoolExecutor(max_workers=32) as ex:
+                results = list(ex.map(_ping, ips))
+            hosts = [h for h in results if h]
+            return jsonify({"hosts": hosts, "target": target, "count": len(hosts)}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/network/portscan ─────────────────────────────────────────────────
+    @app.route("/api/network/portscan", methods=["POST"])
+    @api_login_required
+    def api_network_portscan():
+        try:
+            data   = request.get_json(silent=True) or {}
+            target = sanitize_str(data.get("target",""), 64)
+            ports  = sanitize_str(data.get("ports","1-1024"), 32)
+            if not target or not re.match(r'^[\d./]+$', target):
+                return jsonify({"error": "Invalid target"}), 400
+            result = subprocess.run(
+                ["nmap", "-sV", "-T4", "-p", ports, "-oG", "-", target],
+                capture_output=True, text=True, timeout=120
+            )
+            open_ports = []
+            for line in result.stdout.splitlines():
+                if "Ports:" in line:
+                    port_section = line.split("Ports:")[-1]
+                    for entry in port_section.split(","):
+                        entry = entry.strip()
+                        if "open" in entry:
+                            parts = entry.split("/")
+                            if len(parts) >= 5:
+                                open_ports.append({
+                                    "port": parts[0], "state": parts[1],
+                                    "proto": parts[2], "service": parts[4],
+                                    "version": parts[6] if len(parts) > 6 else "",
+                                })
+            return jsonify({"target": target, "ports": open_ports}), 200
+        except FileNotFoundError:
+            return jsonify({"error": "nmap not installed. Run: sudo apt install nmap"}), 503
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/ics/events ───────────────────────────────────────────────────────
+    @app.route("/api/ics/events")
+    @api_login_required
+    def api_ics_events():
+        try:
+            rows = db.query("""
+                SELECT logid, EventTime, EventType, SourceIp, DestIp,
+                       Protocol, Port, Message, Severity, MitreIds
+                FROM Logs
+                WHERE EventType IN ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104','ICS_BACnet')
+                ORDER BY EventTime DESC LIMIT 500
+            """)
+            events = [{
+                "id": r[0], "time": r[1].isoformat() if r[1] else None,
+                "type": r[2], "src_ip": r[3], "dst_ip": r[4],
+                "proto": r[5], "port": r[6], "message": r[7],
+                "severity": r[8], "mitre": r[9],
+            } for r in rows]
+            return jsonify(events), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/ics/packets ──────────────────────────────────────────────────────
+    @app.route("/api/ics/packets")
+    @api_login_required
+    def api_ics_packets():
+        try:
+            rows = db.query("""
+                SELECT pktid, CaptureTime, SrcIp, DstIp, SrcPort, DstPort,
+                       ICSProtocol, ICSFunctionCode, ICSFunctionName,
+                       ICSAddress, ICSValue, ThreatScore, Anomaly, AnomalyReason
+                FROM Packets
+                WHERE ICSProtocol IS NOT NULL
+                ORDER BY CaptureTime DESC LIMIT 500
+            """)
+            pkts = [{
+                "id": r[0], "time": r[1].isoformat() if r[1] else None,
+                "src_ip": r[2], "dst_ip": r[3], "src_port": r[4], "dst_port": r[5],
+                "proto": r[6], "fc": r[7], "fn": r[8],
+                "addr": r[9], "val": r[10], "threat": r[11],
+                "anomaly": r[12], "reason": r[13],
+            } for r in rows]
+            return jsonify(pkts), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/ics/sis-rules ────────────────────────────────────────────────────
+    @app.route("/api/ics/sis-rules")
+    @api_login_required
+    def api_ics_sis_rules():
+        try:
+            from server.sis import get_all_rules
+            return jsonify(get_all_rules()), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/ics/sis-events ───────────────────────────────────────────────────
+    @app.route("/api/ics/sis-events")
+    @api_login_required
+    def api_ics_sis_events():
+        try:
+            rows = db.query("""
+                SELECT sisid, EventTime, RuleId, RuleName, Severity,
+                       TriggerProtocol, TriggerFunction, TriggerAddress,
+                       TriggerValue, SrcIp, DstIp, AffectedZone, Action
+                FROM SIS_Events ORDER BY EventTime DESC LIMIT 200
+            """)
+            events = [{
+                "id": r[0], "time": r[1].isoformat() if r[1] else None,
+                "rule_id": r[2], "rule_name": r[3], "severity": r[4],
+                "proto": r[5], "fn": r[6], "addr": r[7], "val": r[8],
+                "src_ip": r[9], "dst_ip": r[10], "zone": r[11], "action": r[12],
+            } for r in rows]
+            return jsonify(events), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/assets ───────────────────────────────────────────────────────────
+    @app.route("/api/assets")
+    @api_login_required
+    def api_assets():
+        try:
+            rows = db.query("""
+                SELECT devid, IpAddress, MacAddress, Hostname, Vendor,
+                       DeviceType, OSInfo, Zone, Criticality, IsICS,
+                       ICSProtocol, ThreatScore, LastSeen, Notes
+                FROM Inventory ORDER BY ThreatScore DESC, LastSeen DESC LIMIT 500
+            """)
+            assets = [{
+                "id": r[0], "ip": r[1], "mac": r[2], "hostname": r[3],
+                "vendor": r[4], "type": r[5], "os": r[6], "zone": r[7],
+                "criticality": r[8], "is_ics": r[9], "ics_proto": r[10],
+                "threat_score": r[11],
+                "last_seen": r[12].isoformat() if r[12] else None,
+                "notes": r[13],
+            } for r in rows]
+            return jsonify(assets), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/assets/update ────────────────────────────────────────────────────
+    @app.route("/api/assets/update", methods=["POST"])
+    @api_login_required
+    def api_assets_update():
+        try:
+            import psycopg2
+            data = request.get_json(silent=True) or {}
+            devid = int(data.get("id", 0))
+            notes = sanitize_str(data.get("notes",""), 500)
+            crit  = sanitize_str(data.get("criticality","MEDIUM"), 20)
+            zone  = sanitize_str(data.get("zone",""), 100)
+            conn  = psycopg2.connect(**DB_CONFIG)
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE Inventory SET Notes=%s, Criticality=%s, Zone=%s
+                    WHERE devid=%s
+                """, (notes, crit, zone, devid))
+            conn.commit(); conn.close()
+            return jsonify({"ok": True}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/honeypot/events ──────────────────────────────────────────────────
+    @app.route("/api/honeypot/events")
+    @api_login_required
+    def api_honeypot_events():
+        try:
+            rows = db.query("""
+                SELECT logid, EventTime, EventType, SourceIp, DestIp,
+                       Protocol, Port, Message, Severity, HostName
+                FROM Logs
+                WHERE HostName LIKE '%honeypot%'
+                   OR Message ILIKE '%honeypot%'
+                   OR Message ILIKE '%conpot%'
+                   OR Port IN (102, 502, 20000, 44818, 47808)
+                ORDER BY EventTime DESC LIMIT 500
+            """)
+            events = [{
+                "id": r[0], "time": r[1].isoformat() if r[1] else None,
+                "type": r[2], "src_ip": r[3], "dst_ip": r[4],
+                "proto": r[5], "port": r[6], "message": r[7],
+                "severity": r[8], "host": r[9],
+            } for r in rows]
+            return jsonify(events), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/honeypot/stats ───────────────────────────────────────────────────
+    @app.route("/api/honeypot/stats")
+    @api_login_required
+    def api_honeypot_stats():
+        try:
+            total = db.query("""
+                SELECT COUNT(*) FROM Logs
+                WHERE HostName LIKE '%honeypot%' OR Message ILIKE '%honeypot%'
+                   OR Message ILIKE '%conpot%' OR Port IN (102,502,20000,44818,47808)
+            """)[0][0]
+            top_ips = db.query("""
+                SELECT SourceIp, COUNT(*) FROM Logs
+                WHERE Port IN (102,502,20000,44818,47808)
+                  AND SourceIp IS NOT NULL
+                GROUP BY SourceIp ORDER BY COUNT(*) DESC LIMIT 10
+            """)
+            proto_hits = db.query("""
+                SELECT Port, COUNT(*) FROM Logs
+                WHERE Port IN (102,502,20000,44818,47808)
+                GROUP BY Port ORDER BY COUNT(*) DESC
+            """)
+            PORT_NAMES = {102:"S7/IEC104",502:"Modbus",20000:"DNP3",
+                          44818:"EtherNet/IP",47808:"BACnet"}
+            return jsonify({
+                "total": total,
+                "top_ips": [[r[0], r[1]] for r in top_ips],
+                "proto_hits": [[PORT_NAMES.get(r[0], str(r[0])), r[1]] for r in proto_hits],
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /api/ics/risk-assessment ──────────────────────────────────────────────
+    @app.route("/api/ics/risk-assessment")
+    @api_login_required
+    def api_ics_risk_assessment():
+        """IEC 62443 / NIST SP 800-82 risk scoring based on live event data."""
+        try:
+            from server.sis import SIS_RULES
+            sis_events  = db.query("SELECT COUNT(*) FROM SIS_Events")[0][0]
+            ics_logs    = db.query("""
+                SELECT COUNT(*) FROM Logs
+                WHERE EventType IN ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104')
+            """)[0][0]
+            crit_sis    = db.query("""
+                SELECT COUNT(*) FROM SIS_Events WHERE Severity='CRITICAL'
+            """)[0][0]
+            anomaly_pkts = db.query("""
+                SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE AND ICSProtocol IS NOT NULL
+            """)[0][0]
+            ext_ics = db.query("""
+                SELECT COUNT(*) FROM Packets
+                WHERE ICSProtocol IS NOT NULL
+                  AND SrcIp NOT LIKE '192.168.%'
+                  AND SrcIp NOT LIKE '10.%'
+                  AND SrcIp NOT LIKE '172.%'
+            """)[0][0]
+
+            # Score each domain 0-100 (lower = worse)
+            def _score(val, thresholds):
+                """thresholds = [(count, score)]"""
+                for t, s in thresholds:
+                    if val >= t: return s
+                return 100
+
+            availability  = _score(sis_events,  [(10,20),(5,50),(1,75),(0,100)])
+            integrity     = _score(crit_sis,     [(5,10),(2,40),(1,70),(0,100)])
+            confidential  = _score(ext_ics,      [(20,20),(10,50),(1,75),(0,100)])
+            auth_score    = _score(anomaly_pkts, [(50,20),(20,50),(5,75),(0,100)])
+
+            overall = round((availability + integrity + confidential + auth_score) / 4)
+            risk_level = "CRITICAL" if overall < 40 else ("HIGH" if overall < 60 else
+                         "MEDIUM" if overall < 80 else "LOW")
+
+            return jsonify({
+                "overall": overall,
+                "risk_level": risk_level,
+                "domains": {
+                    "Availability":    availability,
+                    "Integrity":       integrity,
+                    "Confidentiality": confidential,
+                    "Authentication":  auth_score,
+                },
+                "counts": {
+                    "sis_events": sis_events,
+                    "ics_logs": ics_logs,
+                    "critical_sis": crit_sis,
+                    "anomaly_packets": anomaly_pkts,
+                    "external_ics": ext_ics,
+                },
+                "standards": ["IEC 62443-3-3","NIST SP 800-82 Rev 3",
+                               "NERC CIP-005","NERC CIP-007","IEC 60870-5"],
+            }), 200
+        except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     # ── /export/csv ───────────────────────────────────────────────────────────
