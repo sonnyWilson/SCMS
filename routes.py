@@ -10,6 +10,9 @@ import subprocess
 import signal
 import csv
 import io
+import re
+import ipaddress
+import concurrent.futures
 from datetime import datetime, timezone
 
 from flask import (
@@ -26,11 +29,71 @@ from server.security import check_rate_limit, get_csp_nonce, sanitize_str
 import db
 from server import parser as log_parser
 
-import re
+log = logging.getLogger("scms.routes")
+
+# ── Event-type colour palette (for sidebar chart) ─────────────────────────────
+ETYPE_COLORS = {
+    "AUTH":               "#f85149",
+    "AUTH_FAIL":          "#e3a03a",
+    "SUDO":               "#bc8cff",
+    "SUSPICIOUS_COMMAND": "#f85149",
+    "BASH_HISTORY":       "#79c0ff",
+    "ICS_MODBUS":         "#0ea5e9",
+    "ICS_DNP3":           "#00d4aa",
+    "ICS_ENIP":           "#3fb950",
+    "ICS_IEC104":         "#d29922",
+    "ICS_BACnet":         "#e3a03a",
+    "ICS_S7":             "#bc8cff",
+    "SYS":                "#5a7080",
+    "CRON":               "#5a7080",
+    "PKG_MGMT":           "#79c0ff",
+    "NET_CHANGE":         "#3fb950",
+    "SYS_ERROR":          "#f85149",
+    "NETWORK_ANOMALY":    "#e3a03a",
+}
+
+
+def _fmt_log(r):
+    """
+    Convert a Logs query row into the dict the dashboard JS expects.
+    Column order: logid, EventTime, EventType, Success, UserName,
+                  HostName, SourceIp, DestIp, Protocol, Port,
+                  Message, Severity, MitreIds, SiteZone
+    """
+    sev = r[11] or "LOW"
+    tl  = {"CRITICAL": 3, "HIGH": 2, "MEDIUM": 1, "LOW": 0}.get(sev, 0)
+    return {
+        # ── fields the dashboard JS references directly ───────────────────────
+        "logid":        r[0],
+        "timestamp":    r[1].isoformat() if r[1] else None,
+        "eventtype":    r[2]  or "SYS",
+        "threat_level": tl,
+        "threat_label": sev,
+        "username":     r[4]  or "—",
+        "hostname":     r[5]  or "—",
+        "sourceip":     r[6]  or "—",
+        "destip":       r[7]  or "—",
+        "protocol":     r[8]  or "—",
+        "port":         r[9],
+        "message":      r[10] or "",
+        "severity":     sev,
+        "mitre_ids":    r[12] or "",
+        "zone":         r[13] or "—",
+        "rawline":      r[10] or "",
+        # ── legacy aliases so nothing downstream breaks ───────────────────────
+        "id":           r[0],
+        "type":         r[2]  or "SYS",
+        "host":         r[5]  or "—",
+        "user":         r[4]  or "—",
+        "source_ip":    r[6]  or "—",
+        "dest_ip":      r[7]  or "—",
+    }
 
 
 # ── Route registration ────────────────────────────────────────────────────────
 def register_routes(app: Flask):
+
+    # ── Login (GET + POST) ────────────────────────────────────────────────────
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if session.get("logged_in"):
@@ -56,7 +119,6 @@ def register_routes(app: Flask):
                 username_prefill="",
             ), 429
 
-        # CSRF — login_html.py uses field name "_csrf_token"
         submitted_token = request.form.get("_csrf_token", "")
         if not validate_csrf(submitted_token):
             log.warning("CSRF validation failed from %s", request.remote_addr)
@@ -81,10 +143,10 @@ def register_routes(app: Flask):
             ), 401
 
         session.clear()
-        session["logged_in"] = True
-        session["username"]  = username.lower().strip()
-        session["role"]      = result
-        session.permanent    = True
+        session["logged_in"]  = True
+        session["username"]   = username.lower().strip()
+        session["role"]       = result
+        session.permanent     = True
         session["csrf_token"] = secrets.token_hex(32)
 
         return redirect(url_for("dashboard"))
@@ -104,25 +166,24 @@ def register_routes(app: Flask):
 
         nonce = get_csp_nonce()
 
-        # MITRE ATT&CK technique map keyed by EventType
         mitre_map = {
-            "AUTH":               [{"id": "T1110",   "name": "Brute Force",               "tactic": "Credential Access"}],
-            "AUTH_FAIL":          [{"id": "T1110",   "name": "Brute Force",               "tactic": "Credential Access"},
-                                   {"id": "T1110.001","name": "Password Guessing",         "tactic": "Credential Access"}],
-            "SUDO":               [{"id": "T1548.003","name": "Sudo and Sudo Caching",     "tactic": "Privilege Escalation"}],
-            "SUSPICIOUS_COMMAND": [{"id": "T1059.004","name": "Unix Shell",                "tactic": "Execution"},
-                                   {"id": "T0807",    "name": "Command-Line Interface",    "tactic": "Execution"}],
-            "ICS_MODBUS":         [{"id": "T0836",   "name": "Modify Parameter",          "tactic": "Impair Process Control"},
-                                   {"id": "T0855",   "name": "Unauthorized Command Message","tactic": "Impair Process Control"}],
-            "ICS_DNP3":           [{"id": "T0855",   "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
-                                   {"id": "T0831",   "name": "Manipulation of Control",   "tactic": "Impair Process Control"}],
-            "ICS_ENIP":           [{"id": "T0855",   "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
-                                   {"id": "T0836",   "name": "Modify Parameter",          "tactic": "Impair Process Control"}],
-            "ICS_IEC104":         [{"id": "T0855",   "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
-                                   {"id": "T0836",   "name": "Modify Parameter",          "tactic": "Impair Process Control"}],
-            "NETWORK_ANOMALY":    [{"id": "T0846",   "name": "Remote System Discovery",   "tactic": "Discovery"},
-                                   {"id": "T0888",   "name": "Remote System Information", "tactic": "Discovery"}],
-            "BASH_HISTORY":       [{"id": "T1552.003","name": "Bash History",              "tactic": "Credential Access"}],
+            "AUTH":               [{"id": "T1110",    "name": "Brute Force",                "tactic": "Credential Access"}],
+            "AUTH_FAIL":          [{"id": "T1110",    "name": "Brute Force",                "tactic": "Credential Access"},
+                                   {"id": "T1110.001","name": "Password Guessing",          "tactic": "Credential Access"}],
+            "SUDO":               [{"id": "T1548.003","name": "Sudo and Sudo Caching",      "tactic": "Privilege Escalation"}],
+            "SUSPICIOUS_COMMAND": [{"id": "T1059.004","name": "Unix Shell",                 "tactic": "Execution"},
+                                   {"id": "T0807",    "name": "Command-Line Interface",     "tactic": "Execution"}],
+            "ICS_MODBUS":         [{"id": "T0836",    "name": "Modify Parameter",           "tactic": "Impair Process Control"},
+                                   {"id": "T0855",    "name": "Unauthorized Command Message","tactic": "Impair Process Control"}],
+            "ICS_DNP3":           [{"id": "T0855",    "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
+                                   {"id": "T0831",    "name": "Manipulation of Control",    "tactic": "Impair Process Control"}],
+            "ICS_ENIP":           [{"id": "T0855",    "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
+                                   {"id": "T0836",    "name": "Modify Parameter",           "tactic": "Impair Process Control"}],
+            "ICS_IEC104":         [{"id": "T0855",    "name": "Unauthorized Command Message","tactic": "Impair Process Control"},
+                                   {"id": "T0836",    "name": "Modify Parameter",           "tactic": "Impair Process Control"}],
+            "NETWORK_ANOMALY":    [{"id": "T0846",    "name": "Remote System Discovery",    "tactic": "Discovery"},
+                                   {"id": "T0888",    "name": "Remote System Information",  "tactic": "Discovery"}],
+            "BASH_HISTORY":       [{"id": "T1552.003","name": "Bash History",               "tactic": "Credential Access"}],
         }
 
         return render_template_string(
@@ -165,7 +226,7 @@ def register_routes(app: Flask):
 
         return jsonify({"ok": True}), 200
 
-    # ── /api/stats — main polling endpoint used by dashboard ─────────────────
+    # ── /api/stats ────────────────────────────────────────────────────────────
     @app.route("/api/stats")
     @api_login_required
     def api_stats():
@@ -176,6 +237,14 @@ def register_routes(app: Flask):
             open_inc   = db.query("SELECT COUNT(*) FROM Incidents WHERE Status='OPEN'")[0][0]
             packets    = db.query("SELECT COUNT(*) FROM Packets")[0][0]
             anomalies  = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
+
+            # Extra sidebar counters
+            brute_total      = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE Success=0 AND SourceIp IS NOT NULL")[0][0]
+            sudo_total       = db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUDO'")[0][0]
+            suspicious_count = db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUSPICIOUS_COMMAND'")[0][0]
+            auth_count       = db.query("SELECT COUNT(*) FROM Logs WHERE EventType IN ('AUTH','AUTH_FAIL')")[0][0]
+            host_count       = db.query("SELECT COUNT(DISTINCT HostName) FROM Logs WHERE HostName IS NOT NULL")[0][0]
+            unique_ips       = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE SourceIp IS NOT NULL")[0][0]
 
             logs_rows = db.query("""
                 SELECT logid, EventTime, EventType, Success, UserName,
@@ -209,11 +278,25 @@ def register_routes(app: Flask):
                 SELECT EventType, COUNT(*) FROM Logs
                 GROUP BY EventType ORDER BY COUNT(*) DESC LIMIT 15
             """)
-            event_types = {r[0]: r[1] for r in etype_rows}
+            # Dashboard sidebar expects a list of {name, count, color}
+            event_types = [
+                {
+                    "name":  r[0],
+                    "count": r[1],
+                    "color": ETYPE_COLORS.get(r[0], "#5a7080"),
+                }
+                for r in etype_rows
+            ]
 
             return jsonify({
                 "total_logs":       total_logs,
                 "failed_logins":    failed,
+                "brute_total":      brute_total,
+                "sudo_total":       sudo_total,
+                "suspicious_count": suspicious_count,
+                "auth_count":       auth_count,
+                "host_count":       host_count,
+                "unique_ips":       unique_ips,
                 "total_incidents":  incidents,
                 "open_incidents":   open_inc,
                 "total_packets":    packets,
@@ -227,24 +310,6 @@ def register_routes(app: Flask):
         except Exception as e:
             log.error("api_stats: %s", e)
             return jsonify({"error": str(e)}), 500
-
-    def _fmt_log(r):
-        return {
-            "id":          r[0],
-            "timestamp":   r[1].isoformat() if r[1] else None,
-            "type":        r[2],
-            "threat_level": 0 if r[3] == 1 else 1,
-            "user":        r[4],
-            "host":        r[5],
-            "source_ip":   r[6],
-            "dest_ip":     r[7],
-            "protocol":    r[8],
-            "port":        r[9],
-            "message":     r[10],
-            "severity":    r[11],
-            "mitre_ids":   r[12],
-            "zone":        r[13],
-        }
 
     # ── /api/top-ips ──────────────────────────────────────────────────────────
     @app.route("/api/top-ips")
@@ -371,6 +436,7 @@ def register_routes(app: Flask):
                         "pid":     int(parts[1]),
                         "cpu":     parts[2],
                         "mem":     parts[3],
+                        "cmd":     parts[10][:80],
                         "command": parts[10][:80],
                     })
             return jsonify(procs), 200
@@ -399,6 +465,7 @@ def register_routes(app: Flask):
     @api_login_required
     def api_inventory():
         try:
+            import platform
             rows = db.query("""
                 SELECT devid, IpAddress, MacAddress, Hostname, Vendor,
                        DeviceType, OSInfo, Zone, Criticality, IsICS,
@@ -407,14 +474,24 @@ def register_routes(app: Flask):
                 LIMIT 200
             """)
             devices = [{
-                "id":          r[0], "ip":         r[1], "mac":       r[2],
-                "hostname":    r[3], "vendor":     r[4], "type":      r[5],
-                "os":          r[6], "zone":       r[7], "criticality": r[8],
-                "is_ics":      r[9], "ics_protocol": r[10],
+                "id":           r[0], "ip":          r[1], "mac":        r[2],
+                "hostname":     r[3], "vendor":      r[4], "type":       r[5],
+                "os":           r[6], "zone":        r[7], "criticality": r[8],
+                "is_ics":       r[9], "ics_protocol": r[10],
                 "threat_score": r[11],
-                "last_seen":   r[12].isoformat() if r[12] else None,
+                "last_seen":    r[12].isoformat() if r[12] else None,
             } for r in rows]
-            return jsonify(devices), 200
+            import config as _cfg
+            return jsonify({
+                "hostname":  os.uname().nodename,
+                "os":        platform.system() + " " + platform.release(),
+                "platform":  platform.platform(),
+                "python":    platform.python_version(),
+                "log_paths": len(_cfg.TEXT_LOG_FILES),
+                "db_host":   _cfg.DB_CONFIG.get("host","localhost"),
+                "db_name":   _cfg.DB_CONFIG.get("database","scms"),
+                "devices":   devices,
+            }), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -433,7 +510,7 @@ def register_routes(app: Flask):
                 """)
                 dbs = [r[0] for r in cur.fetchall()]
             conn.close()
-            return jsonify({"databases": dbs, "current": DB_CONFIG["database"]}), 200
+            return jsonify(dbs), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -441,9 +518,10 @@ def register_routes(app: Flask):
     @app.route("/api/switch-db", methods=["POST"])
     @api_login_required
     def api_switch_db():
-        # Runtime DB switching is not supported — inform the dashboard gracefully
-        return jsonify({"success": False,
-                        "message": "Switch DB_NAME in .env and restart the server"}), 200
+        return jsonify({
+            "success": False,
+            "message": "Switch DB_NAME in .env and restart the server",
+        }), 200
 
     # ── /api/create-db ────────────────────────────────────────────────────────
     @app.route("/api/create-db", methods=["POST"])
@@ -460,7 +538,7 @@ def register_routes(app: Flask):
             with conn.cursor() as cur:
                 cur.execute(f'CREATE DATABASE "{name}"')
             conn.close()
-            return jsonify({"ok": True}), 200
+            return jsonify({"ok": True, "message": f"Database '{name}' created"}), 200
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -472,7 +550,6 @@ def register_routes(app: Flask):
         path = sanitize_str(data.get("path", ""), 512)
         if not path:
             return jsonify({"error": "path required"}), 400
-        # Append to running config in-memory (agent reads TEXT_LOG_FILES at startup)
         import config
         if path not in config.TEXT_LOG_FILES:
             config.TEXT_LOG_FILES.append(path)
@@ -510,21 +587,21 @@ def register_routes(app: Flask):
             f = request.files.get("file")
             if not f:
                 return jsonify({"error": "No file uploaded"}), 400
-            text    = f.read().decode("utf-8", errors="replace")
-            reader  = csv.DictReader(io.StringIO(text))
+            text   = f.read().decode("utf-8", errors="replace")
+            reader = csv.DictReader(io.StringIO(text))
             imported = 0
             for row in reader:
                 event = {
-                    "EventTime":  row.get("EventTime") or datetime.now(timezone.utc).isoformat(),
-                    "EventType":  row.get("EventType", "SYS"),
-                    "Success":    int(row.get("Success", 1)),
-                    "UserName":   row.get("UserName"),
-                    "HostName":   row.get("HostName"),
-                    "SourceIp":   row.get("SourceIp"),
-                    "Message":    row.get("Message", "")[:700],
-                    "RawLine":    row.get("RawLine", "")[:700],
-                    "Severity":   row.get("Severity", "LOW"),
-                    "MitreIds":   row.get("MitreIds"),
+                    "EventTime": row.get("EventTime") or datetime.now(timezone.utc).isoformat(),
+                    "EventType": row.get("EventType", "SYS"),
+                    "Success":   int(row.get("Success", 1)),
+                    "UserName":  row.get("UserName"),
+                    "HostName":  row.get("HostName"),
+                    "SourceIp":  row.get("SourceIp"),
+                    "Message":   row.get("Message", "")[:700],
+                    "RawLine":   row.get("RawLine", "")[:700],
+                    "Severity":  row.get("Severity", "LOW"),
+                    "MitreIds":  row.get("MitreIds"),
                 }
                 db.insert(event)
                 imported += 1
@@ -533,7 +610,32 @@ def register_routes(app: Flask):
             log.error("import_csv: %s", e)
             return jsonify({"error": str(e)}), 500
 
-    # ── /health — with real DB check ─────────────────────────────────────────
+    # ── /export/csv ───────────────────────────────────────────────────────────
+    @app.route("/export/csv")
+    @api_login_required
+    def export_csv():
+        try:
+            rows = db.query("""
+                SELECT logid, EventTime, EventType, Success, UserName,
+                       HostName, SourceIp, DestIp, Protocol, Port,
+                       Message, Severity, MitreIds
+                FROM Logs ORDER BY EventTime DESC LIMIT 10000
+            """)
+            out = io.StringIO()
+            w   = csv.writer(out)
+            w.writerow(["logid","EventTime","EventType","Success","UserName",
+                        "HostName","SourceIp","DestIp","Protocol","Port",
+                        "Message","Severity","MitreIds"])
+            for r in rows:
+                w.writerow([str(x) if x is not None else "" for x in r])
+            resp = make_response(out.getvalue())
+            resp.headers["Content-Type"]        = "text/csv"
+            resp.headers["Content-Disposition"] = "attachment; filename=scms_logs.csv"
+            return resp
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ── /health ───────────────────────────────────────────────────────────────
     @app.route("/health")
     def health():
         db_status = "unreachable"
@@ -561,7 +663,7 @@ def register_routes(app: Flask):
         try:
             from server.capture import start_capture
             data  = request.get_json(silent=True) or {}
-            iface = sanitize_str(data.get("interface","eth0"), 32)
+            iface = sanitize_str(data.get("interface", "eth0"), 32)
             ok, msg = start_capture(iface)
             return jsonify({"ok": ok, "message": msg}), 200
         except Exception as e:
@@ -588,7 +690,7 @@ def register_routes(app: Flask):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ── /api/packets — live packet table ─────────────────────────────────────
+    # ── /api/packets ─────────────────────────────────────────────────────────
     @app.route("/api/packets")
     @api_login_required
     def api_packets():
@@ -614,7 +716,7 @@ def register_routes(app: Flask):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ── /api/network/scan — nmap-style host discovery ─────────────────────────
+    # ── /api/network/scan ─────────────────────────────────────────────────────
     @app.route("/api/network/scan", methods=["POST"])
     @api_login_required
     def api_network_scan():
@@ -623,11 +725,8 @@ def register_routes(app: Flask):
             target = sanitize_str(data.get("target", ""), 64)
             if not target:
                 return jsonify({"error": "target required"}), 400
-            # Basic validation — only allow CIDR or single IP
-            import re
             if not re.match(r'^[\d./]+$', target):
                 return jsonify({"error": "Invalid target"}), 400
-            # Try nmap first, fall back to ping sweep
             result = subprocess.run(
                 ["nmap", "-sn", "-T4", "--open", "-oG", "-", target],
                 capture_output=True, text=True, timeout=60
@@ -636,20 +735,19 @@ def register_routes(app: Flask):
             for line in result.stdout.splitlines():
                 if "Host:" in line and "Status: Up" in line:
                     parts = line.split()
-                    ip = parts[1] if len(parts) > 1 else ""
+                    ip       = parts[1] if len(parts) > 1 else ""
                     hostname = parts[2].strip("()") if len(parts) > 2 else ""
                     hosts.append({"ip": ip, "hostname": hostname, "status": "up"})
             return jsonify({"hosts": hosts, "target": target, "count": len(hosts)}), 200
         except FileNotFoundError:
-            # nmap not installed — ping sweep fallback
-            import ipaddress, concurrent.futures
+            # nmap not installed — threaded ping sweep fallback
             try:
                 net = ipaddress.ip_network(target, strict=False)
                 ips = [str(h) for h in net.hosts()][:254]
             except Exception:
                 ips = [target]
             def _ping(ip):
-                r = subprocess.run(["ping","-c","1","-W","1",ip],
+                r = subprocess.run(["ping", "-c", "1", "-W", "1", ip],
                                    capture_output=True, timeout=3)
                 return {"ip": ip, "hostname": "", "status": "up"} if r.returncode == 0 else None
             with concurrent.futures.ThreadPoolExecutor(max_workers=32) as ex:
@@ -665,8 +763,8 @@ def register_routes(app: Flask):
     def api_network_portscan():
         try:
             data   = request.get_json(silent=True) or {}
-            target = sanitize_str(data.get("target",""), 64)
-            ports  = sanitize_str(data.get("ports","1-1024"), 32)
+            target = sanitize_str(data.get("target", ""), 64)
+            ports  = sanitize_str(data.get("ports", "1-1024"), 32)
             if not target or not re.match(r'^[\d./]+$', target):
                 return jsonify({"error": "Invalid target"}), 400
             result = subprocess.run(
@@ -676,15 +774,16 @@ def register_routes(app: Flask):
             open_ports = []
             for line in result.stdout.splitlines():
                 if "Ports:" in line:
-                    port_section = line.split("Ports:")[-1]
-                    for entry in port_section.split(","):
+                    for entry in line.split("Ports:")[-1].split(","):
                         entry = entry.strip()
                         if "open" in entry:
                             parts = entry.split("/")
                             if len(parts) >= 5:
                                 open_ports.append({
-                                    "port": parts[0], "state": parts[1],
-                                    "proto": parts[2], "service": parts[4],
+                                    "port":    parts[0],
+                                    "state":   parts[1],
+                                    "proto":   parts[2],
+                                    "service": parts[4],
                                     "version": parts[6] if len(parts) > 6 else "",
                                 })
             return jsonify({"target": target, "ports": open_ports}), 200
@@ -702,7 +801,9 @@ def register_routes(app: Flask):
                 SELECT logid, EventTime, EventType, SourceIp, DestIp,
                        Protocol, Port, Message, Severity, MitreIds
                 FROM Logs
-                WHERE EventType IN ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104','ICS_BACnet')
+                WHERE EventType IN
+                  ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104',
+                   'ICS_BACnet','ICS_S7','ICS_PROFINET')
                 ORDER BY EventTime DESC LIMIT 500
             """)
             events = [{
@@ -770,6 +871,64 @@ def register_routes(app: Flask):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── /api/ics/risk-assessment ──────────────────────────────────────────────
+    @app.route("/api/ics/risk-assessment")
+    @api_login_required
+    def api_ics_risk_assessment():
+        try:
+            sis_events   = db.query("SELECT COUNT(*) FROM SIS_Events")[0][0]
+            ics_logs     = db.query("""
+                SELECT COUNT(*) FROM Logs
+                WHERE EventType IN ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104')
+            """)[0][0]
+            crit_sis     = db.query("SELECT COUNT(*) FROM SIS_Events WHERE Severity='CRITICAL'")[0][0]
+            anomaly_pkts = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE AND ICSProtocol IS NOT NULL")[0][0]
+            ext_ics      = db.query("""
+                SELECT COUNT(*) FROM Packets
+                WHERE ICSProtocol IS NOT NULL
+                  AND SrcIp NOT LIKE '192.168.%'
+                  AND SrcIp NOT LIKE '10.%'
+                  AND SrcIp NOT LIKE '172.%'
+            """)[0][0]
+
+            def _score(val, thresholds):
+                for t, s in thresholds:
+                    if val >= t: return s
+                return 100
+
+            availability = _score(sis_events,   [(10,20),(5,50),(1,75),(0,100)])
+            integrity    = _score(crit_sis,      [(5,10),(2,40),(1,70),(0,100)])
+            confidential = _score(ext_ics,       [(20,20),(10,50),(1,75),(0,100)])
+            auth_score   = _score(anomaly_pkts,  [(50,20),(20,50),(5,75),(0,100)])
+            overall      = round((availability + integrity + confidential + auth_score) / 4)
+            risk_level   = ("CRITICAL" if overall < 40 else
+                            "HIGH"     if overall < 60 else
+                            "MEDIUM"   if overall < 80 else "LOW")
+
+            return jsonify({
+                "overall":    overall,
+                "risk_level": risk_level,
+                "domains": {
+                    "Availability":    availability,
+                    "Integrity":       integrity,
+                    "Confidentiality": confidential,
+                    "Authentication":  auth_score,
+                },
+                "counts": {
+                    "sis_events":     sis_events,
+                    "ics_logs":       ics_logs,
+                    "critical_sis":   crit_sis,
+                    "anomaly_packets":anomaly_pkts,
+                    "external_ics":   ext_ics,
+                },
+                "standards": [
+                    "IEC 62443-3-3", "NIST SP 800-82 Rev 3",
+                    "NERC CIP-005",  "NERC CIP-007", "IEC 60870-5",
+                ],
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ── /api/assets ───────────────────────────────────────────────────────────
     @app.route("/api/assets")
     @api_login_required
@@ -799,17 +958,17 @@ def register_routes(app: Flask):
     def api_assets_update():
         try:
             import psycopg2
-            data = request.get_json(silent=True) or {}
+            data  = request.get_json(silent=True) or {}
             devid = int(data.get("id", 0))
-            notes = sanitize_str(data.get("notes",""), 500)
-            crit  = sanitize_str(data.get("criticality","MEDIUM"), 20)
-            zone  = sanitize_str(data.get("zone",""), 100)
+            notes = sanitize_str(data.get("notes", ""), 500)
+            crit  = sanitize_str(data.get("criticality", "MEDIUM"), 20)
+            zone  = sanitize_str(data.get("zone", ""), 100)
             conn  = psycopg2.connect(**DB_CONFIG)
             with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE Inventory SET Notes=%s, Criticality=%s, Zone=%s
-                    WHERE devid=%s
-                """, (notes, crit, zone, devid))
+                cur.execute(
+                    "UPDATE Inventory SET Notes=%s, Criticality=%s, Zone=%s WHERE devid=%s",
+                    (notes, crit, zone, devid)
+                )
             conn.commit(); conn.close()
             return jsonify({"ok": True}), 200
         except Exception as e:
@@ -850,10 +1009,9 @@ def register_routes(app: Flask):
                 WHERE HostName LIKE '%honeypot%' OR Message ILIKE '%honeypot%'
                    OR Message ILIKE '%conpot%' OR Port IN (102,502,20000,44818,47808)
             """)[0][0]
-            top_ips = db.query("""
+            top_ips    = db.query("""
                 SELECT SourceIp, COUNT(*) FROM Logs
-                WHERE Port IN (102,502,20000,44818,47808)
-                  AND SourceIp IS NOT NULL
+                WHERE Port IN (102,502,20000,44818,47808) AND SourceIp IS NOT NULL
                 GROUP BY SourceIp ORDER BY COUNT(*) DESC LIMIT 10
             """)
             proto_hits = db.query("""
@@ -861,101 +1019,14 @@ def register_routes(app: Flask):
                 WHERE Port IN (102,502,20000,44818,47808)
                 GROUP BY Port ORDER BY COUNT(*) DESC
             """)
-            PORT_NAMES = {102:"S7/IEC104",502:"Modbus",20000:"DNP3",
-                          44818:"EtherNet/IP",47808:"BACnet"}
+            PORT_NAMES = {
+                102: "S7/IEC104", 502: "Modbus",
+                20000: "DNP3",    44818: "EtherNet/IP", 47808: "BACnet",
+            }
             return jsonify({
-                "total": total,
-                "top_ips": [[r[0], r[1]] for r in top_ips],
-                "proto_hits": [[PORT_NAMES.get(r[0], str(r[0])), r[1]] for r in proto_hits],
+                "total":       total,
+                "top_ips":     [[r[0], r[1]] for r in top_ips],
+                "proto_hits":  [[PORT_NAMES.get(r[0], str(r[0])), r[1]] for r in proto_hits],
             }), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    # ── /api/ics/risk-assessment ──────────────────────────────────────────────
-    @app.route("/api/ics/risk-assessment")
-    @api_login_required
-    def api_ics_risk_assessment():
-        """IEC 62443 / NIST SP 800-82 risk scoring based on live event data."""
-        try:
-            from server.sis import SIS_RULES
-            sis_events  = db.query("SELECT COUNT(*) FROM SIS_Events")[0][0]
-            ics_logs    = db.query("""
-                SELECT COUNT(*) FROM Logs
-                WHERE EventType IN ('ICS_MODBUS','ICS_DNP3','ICS_ENIP','ICS_IEC104')
-            """)[0][0]
-            crit_sis    = db.query("""
-                SELECT COUNT(*) FROM SIS_Events WHERE Severity='CRITICAL'
-            """)[0][0]
-            anomaly_pkts = db.query("""
-                SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE AND ICSProtocol IS NOT NULL
-            """)[0][0]
-            ext_ics = db.query("""
-                SELECT COUNT(*) FROM Packets
-                WHERE ICSProtocol IS NOT NULL
-                  AND SrcIp NOT LIKE '192.168.%'
-                  AND SrcIp NOT LIKE '10.%'
-                  AND SrcIp NOT LIKE '172.%'
-            """)[0][0]
-
-            # Score each domain 0-100 (lower = worse)
-            def _score(val, thresholds):
-                """thresholds = [(count, score)]"""
-                for t, s in thresholds:
-                    if val >= t: return s
-                return 100
-
-            availability  = _score(sis_events,  [(10,20),(5,50),(1,75),(0,100)])
-            integrity     = _score(crit_sis,     [(5,10),(2,40),(1,70),(0,100)])
-            confidential  = _score(ext_ics,      [(20,20),(10,50),(1,75),(0,100)])
-            auth_score    = _score(anomaly_pkts, [(50,20),(20,50),(5,75),(0,100)])
-
-            overall = round((availability + integrity + confidential + auth_score) / 4)
-            risk_level = "CRITICAL" if overall < 40 else ("HIGH" if overall < 60 else
-                         "MEDIUM" if overall < 80 else "LOW")
-
-            return jsonify({
-                "overall": overall,
-                "risk_level": risk_level,
-                "domains": {
-                    "Availability":    availability,
-                    "Integrity":       integrity,
-                    "Confidentiality": confidential,
-                    "Authentication":  auth_score,
-                },
-                "counts": {
-                    "sis_events": sis_events,
-                    "ics_logs": ics_logs,
-                    "critical_sis": crit_sis,
-                    "anomaly_packets": anomaly_pkts,
-                    "external_ics": ext_ics,
-                },
-                "standards": ["IEC 62443-3-3","NIST SP 800-82 Rev 3",
-                               "NERC CIP-005","NERC CIP-007","IEC 60870-5"],
-            }), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    # ── /export/csv ───────────────────────────────────────────────────────────
-    @app.route("/export/csv")
-    @api_login_required
-    def export_csv():
-        try:
-            rows = db.query("""
-                SELECT logid, EventTime, EventType, Success, UserName,
-                       HostName, SourceIp, DestIp, Protocol, Port,
-                       Message, Severity, MitreIds
-                FROM Logs ORDER BY EventTime DESC LIMIT 10000
-            """)
-            out = io.StringIO()
-            w   = csv.writer(out)
-            w.writerow(["logid","EventTime","EventType","Success","UserName",
-                         "HostName","SourceIp","DestIp","Protocol","Port",
-                         "Message","Severity","MitreIds"])
-            for r in rows:
-                w.writerow([str(x) if x is not None else "" for x in r])
-            resp = make_response(out.getvalue())
-            resp.headers["Content-Type"]        = "text/csv"
-            resp.headers["Content-Disposition"] = "attachment; filename=scms_logs.csv"
-            return resp
         except Exception as e:
             return jsonify({"error": str(e)}), 500

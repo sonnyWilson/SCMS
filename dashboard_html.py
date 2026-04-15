@@ -38,10 +38,10 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-ser
 body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px);pointer-events:none;z-index:9999}
 
 /* NAV */
-nav{background:var(--surface);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:300}
+nav{background:var(--surface);border-bottom:1px solid var(--border);height:76px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:300}
 .brand{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:var(--accent);border:1px solid var(--accent);padding:3px 10px;border-radius:3px;letter-spacing:.1em}
 .nav-center{display:flex;align-items:center;gap:4px;overflow-x:auto}
-.nav-tab{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.06em;padding:5px 14px;border-radius:4px;border:1px solid transparent;background:none;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.nav-tab{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.06em;padding:6px 14px;border-radius:4px;border:1px solid transparent;background:none;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
 .nav-tab:hover{color:var(--text);border-color:var(--border2)}
 .nav-tab.active{color:var(--accent);border-color:var(--accent);background:rgba(0,212,170,.08)}
 .nav-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
@@ -55,9 +55,14 @@ nav{background:var(--surface);border-bottom:1px solid var(--border);height:52px;
 .nav-btn.danger:hover{border-color:var(--red);background:rgba(248,81,73,.1)}
 
 /* LAYOUT */
-.shell{display:flex;height:calc(100vh - 52px);overflow:hidden}
-.sidebar{width:260px;min-width:260px;background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
-.main-area{flex:1;overflow-y:auto;padding:18px}
+.shell{display:flex;height:calc(100vh - 76px);overflow:hidden}
+.sidebar{width:260px;min-width:260px;background:var(--surface);border-right:1px solid var(--border);overflow-y:scroll;display:flex;flex-direction:column}
+.main-area{flex:1;overflow-y:scroll;padding:18px}
+/* Always-visible scrollbar styling */
+.sidebar::-webkit-scrollbar,.main-area::-webkit-scrollbar{width:6px}
+.sidebar::-webkit-scrollbar-track,.main-area::-webkit-scrollbar-track{background:var(--surface)}
+.sidebar::-webkit-scrollbar-thumb,.main-area::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.sidebar::-webkit-scrollbar-thumb:hover,.main-area::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 /* SIDEBAR */
 .sb-section{padding:14px;border-bottom:1px solid var(--border)}
@@ -125,17 +130,23 @@ table{width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;
 thead{position:sticky;top:0;z-index:10}
 th{background:var(--panel);padding:8px 12px;text-align:left;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
 th:hover{color:var(--text)}
-td{padding:7px 12px;border-bottom:1px solid rgba(26,45,61,.5);vertical-align:middle;max-width:0}
+td{padding:7px 12px;border-bottom:1px solid rgba(26,45,61,.5);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 tr.lr{cursor:pointer;transition:background .08s}
 tr.lr:hover td{background:rgba(255,255,255,.02)}
 tr.r-red td{background:rgba(248,81,73,.04)}tr.r-red:hover td{background:rgba(248,81,73,.08)}
 tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:rgba(227,160,58,.07)}
-.col-time{width:140px;color:var(--muted);white-space:nowrap}
-.col-type{width:130px}.col-host{width:110px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.col-user{width:90px;color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.col-ip{width:110px;color:var(--accent);white-space:nowrap}
-.col-msg{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.col-sev{width:80px;text-align:center}
+.col-time{width:160px;min-width:160px;color:var(--muted);white-space:nowrap}
+.col-type{width:150px;min-width:150px}
+.col-host{width:120px;min-width:80px;color:var(--muted)}
+.col-user{width:100px;min-width:70px;color:var(--blue)}
+.col-ip{width:120px;min-width:100px;color:var(--accent)}
+.col-msg{color:var(--text);max-width:0}
+.col-sev{width:90px;min-width:90px;text-align:center}
+/* tbl-center — placed AFTER td rule so it wins the cascade */
+.tbl-center th{text-align:center !important}
+.tbl-center td{text-align:center !important;vertical-align:middle !important}
+.tbl-center th:first-child{text-align:left !important}
+.tbl-center td:first-child{text-align:left !important}
 .badge{display:inline-block;padding:2px 7px;border-radius:2px;font-size:9px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
 .badge-AUTH{background:rgba(248,81,73,.15);color:var(--red);border:1px solid rgba(248,81,73,.3)}
 .badge-SUDO{background:rgba(227,160,58,.15);color:var(--orange);border:1px solid rgba(227,160,58,.3)}
@@ -194,8 +205,10 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
 @keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
 
 /* MISC */
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}ansparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 .empty-state{text-align:center;padding:40px 20px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px}
 .tag{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:2px;white-space:nowrap}
@@ -636,7 +649,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
       <span class="pt">Process Manager</span>
       <button class="btn btn-blue" id="btn-load-processes">↺ Refresh</button>
     </div>
-    <div class="pb" style="max-height:280px;overflow-y:auto">
+    <div class="pb" style="max-height:280px;overflow-y:scroll">
       <table class="proc-table">
         <thead><tr><th>PID</th><th>User</th><th>CPU%</th><th>MEM%</th><th>Command</th><th>Action</th></tr></thead>
         <tbody id="proc-table-body"></tbody>
@@ -646,7 +659,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
   </div>
   <div class="panel">
     <div class="ph"><span class="pt">Response Action Log</span></div>
-    <div class="pb" style="max-height:200px;overflow-y:auto">
+    <div class="pb" style="max-height:200px;overflow-y:scroll">
       <div id="ar-log" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:4px">
         <div style="color:var(--green)">[ SYSTEM ] Active Response module initialized</div>
       </div>
@@ -667,7 +680,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
             <button class="btn btn-accent" id="btn-load-dbs">↺ Refresh</button>
           </div>
         </div>
-        <div class="db-list" id="db-list" style="max-height:180px;overflow-y:auto;margin-bottom:12px"></div>
+        <div class="db-list" id="db-list" style="max-height:180px;overflow-y:scroll;margin-bottom:12px"></div>
         <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
         <div class="form-group">
           <label class="form-label">Create New Database</label>
@@ -689,7 +702,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
             <button class="btn btn-accent" id="btn-add-log-path">+ Add</button>
           </div>
         </div>
-        <div class="path-list" id="log-paths" style="max-height:220px;overflow-y:auto"></div>
+        <div class="path-list" id="log-paths" style="max-height:220px;overflow-y:scroll"></div>
       </div>
     </div>
   </div>
@@ -785,7 +798,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
       </div>
     </div>
     <div class="pb" style="overflow-x:auto">
-      <table id="ast-table">
+      <table id="ast-table" class="tbl-center">
         <thead><tr>
           <th>IP Address</th><th>Hostname</th><th>MAC</th><th>Vendor</th>
           <th>Type</th><th>OS</th><th>Zone</th><th>Criticality</th>
@@ -834,7 +847,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
           <button class="btn btn-red" id="btn-capture-stop">■ Stop</button>
           <button class="btn" id="btn-capture-refresh">↺ Refresh Stats</button>
         </div>
-        <div id="capture-log" style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);max-height:80px;overflow-y:auto"></div>
+        <div id="capture-log" style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);max-height:80px;overflow-y:scroll"></div>
       </div>
     </div>
     <!-- Network Scanner -->
@@ -857,7 +870,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
   <div class="panel" id="scan-results-panel" style="display:none">
     <div class="ph"><span class="pt">Scan Results</span><span id="scan-result-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></span></div>
     <div class="pb" style="overflow-x:auto">
-      <table><thead><tr><th>IP Address</th><th>Hostname</th><th>Port</th><th>State</th><th>Service</th><th>Version</th></tr></thead>
+      <table class="tbl-center"><thead><tr><th>IP Address</th><th>Hostname</th><th>Port</th><th>State</th><th>Service</th><th>Version</th></tr></thead>
       <tbody id="scan-results-tbody"></tbody></table>
     </div>
   </div>
@@ -875,8 +888,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
         <button class="btn" id="btn-load-packets">↺ Refresh</button>
       </div>
     </div>
-    <div class="pb" style="overflow-x:auto;max-height:420px">
-      <table>
+    <div class="pb" style="overflow-x:auto;max-height:420px;overflow-y:scroll">
+      <table class="tbl-center">
         <thead><tr>
           <th>Time</th><th>Src IP</th><th>Dst IP</th><th>Src Port</th><th>Dst Port</th>
           <th>Proto</th><th>Len</th><th>Flags</th><th>ICS Proto</th><th>FC</th>
@@ -916,8 +929,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <!-- SIS Rules -->
     <div class="panel">
       <div class="ph"><span class="pt">SIS Trip Rules</span><span id="sis-rule-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)"></span></div>
-      <div class="pb" style="max-height:340px;overflow-y:auto">
-        <table>
+      <div class="pb" style="max-height:340px;overflow-y:scroll">
+        <table class="tbl-center">
           <thead><tr><th>ID</th><th>Name</th><th>Protocol</th><th>Zone</th><th>Severity</th></tr></thead>
           <tbody id="sis-rules-tbody"></tbody>
         </table>
@@ -929,8 +942,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
       <div class="ph"><span class="pt">SIS Trip Events</span>
         <button class="btn btn-blue btn-sm" id="btn-load-sis-events">↺ Refresh</button>
       </div>
-      <div class="pb" style="max-height:340px;overflow-y:auto">
-        <table>
+      <div class="pb" style="max-height:340px;overflow-y:scroll">
+        <table class="tbl-center">
           <thead><tr><th>Time</th><th>Rule</th><th>Severity</th><th>Src IP</th><th>Zone</th><th>Action</th></tr></thead>
           <tbody id="sis-events-tbody"></tbody>
         </table>
@@ -951,8 +964,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
         <button class="btn" id="btn-load-ics-events">↺ Refresh</button>
       </div>
     </div>
-    <div class="pb" style="overflow-x:auto;max-height:350px">
-      <table>
+    <div class="pb" style="overflow-x:auto;max-height:350px;overflow-y:scroll">
+      <table class="tbl-center">
         <thead><tr><th>Time</th><th>Type</th><th>Src IP</th><th>Dst IP</th><th>Port</th><th>Severity</th><th>Message</th><th>MITRE</th></tr></thead>
         <tbody id="ics-events-tbody"></tbody>
       </table>
@@ -964,8 +977,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
     <div class="ph"><span class="pt">ICS Packet Decode</span>
       <button class="btn" id="btn-load-ics-packets">↺ Refresh</button>
     </div>
-    <div class="pb" style="overflow-x:auto;max-height:320px">
-      <table>
+    <div class="pb" style="overflow-x:auto;max-height:320px;overflow-y:scroll">
+      <table class="tbl-center">
         <thead><tr><th>Time</th><th>Src</th><th>Dst</th><th>Protocol</th><th>FC</th><th>Function</th><th>Address</th><th>Value</th><th>Threat</th><th>Anomaly</th></tr></thead>
         <tbody id="ics-pkts-tbody"></tbody>
       </table>
@@ -1011,7 +1024,7 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
         <button class="btn btn-blue btn-sm" id="btn-load-hp">↺ Refresh</button>
       </div>
       <div class="pb">
-        <table class="ip-table">
+        <table class="ip-table tbl-center">
           <thead><tr><th>IP Address</th><th>Hits</th><th>Action</th></tr></thead>
           <tbody id="hp-attacker-table"></tbody>
         </table>
@@ -1035,8 +1048,8 @@ tr.r-orange td{background:rgba(227,160,58,.03)}tr.r-orange:hover td{background:r
         <button class="btn" id="btn-load-hp-events">↺ Refresh</button>
       </div>
     </div>
-    <div class="pb" style="overflow-x:auto;max-height:400px">
-      <table>
+    <div class="pb" style="overflow-x:auto;max-height:400px;overflow-y:scroll">
+      <table class="tbl-center">
         <thead><tr><th>Time</th><th>Src IP</th><th>Dst IP</th><th>Port</th><th>Protocol</th><th>Message</th><th>Severity</th><th>Action</th></tr></thead>
         <tbody id="hp-events-tbody"></tbody>
       </table>
@@ -2080,19 +2093,20 @@ function renderAssets(assets) {
   if (!assets.length) { tb.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   const threatColor = s => s>=80?'var(--red)':s>=50?'var(--orange)':'var(--green)';
+  const C = 'text-align:center;vertical-align:middle';
   tb.innerHTML = assets.map(a => `<tr>
     <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${a.ip||'—'}</td>
-    <td>${a.hostname||'—'}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted)">${a.mac||'—'}</td>
-    <td>${a.vendor||'—'}</td>
-    <td>${a.type||'—'}</td>
-    <td style="font-size:10px">${a.os||'—'}</td>
-    <td>${a.zone||'—'}</td>
-    <td><span class="sev-badge sev-${a.criticality==='CRITICAL'?3:a.criticality==='HIGH'?2:a.criticality==='MEDIUM'?1:0}">${a.criticality||'—'}</span></td>
-    <td>${a.ics_proto?`<span style="color:var(--blue);font-family:'IBM Plex Mono',monospace;font-size:9px">${a.ics_proto}</span>`:'—'}</td>
-    <td><span style="color:${threatColor(a.threat_score||0)};font-family:'IBM Plex Mono',monospace">${a.threat_score||0}</span></td>
-    <td style="font-size:10px;color:var(--muted)">${(a.last_seen||'').slice(0,16)}</td>
-    <td><button class="btn btn-sm" data-edit-asset='${JSON.stringify(a)}'>Edit</button></td>
+    <td style="${C}">${a.hostname||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);${C}">${a.mac||'—'}</td>
+    <td style="${C}">${a.vendor||'—'}</td>
+    <td style="${C}">${a.type||'—'}</td>
+    <td style="font-size:10px;${C}">${a.os||'—'}</td>
+    <td style="${C}">${a.zone||'—'}</td>
+    <td style="${C}"><span class="sev-badge sev-${a.criticality==='CRITICAL'?3:a.criticality==='HIGH'?2:a.criticality==='MEDIUM'?1:0}">${a.criticality||'—'}</span></td>
+    <td style="${C}">${a.ics_proto?`<span style="color:var(--blue);font-family:'IBM Plex Mono',monospace;font-size:9px">${a.ics_proto}</span>`:'—'}</td>
+    <td style="${C}"><span style="color:${threatColor(a.threat_score||0)};font-family:'IBM Plex Mono',monospace">${a.threat_score||0}</span></td>
+    <td style="font-size:10px;color:var(--muted);${C}">${(a.last_seen||'').slice(0,16)}</td>
+    <td style="${C}"><button class="btn btn-sm" data-edit-asset='${JSON.stringify(a)}'>Edit</button></td>
   </tr>`).join('');
 }
 
@@ -2202,19 +2216,20 @@ function renderPackets(pkts) {
   const empty = document.getElementById('pkt-empty');
   if (!pkts.length) { tb.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
+  const C = 'text-align:center;vertical-align:middle';
   tb.innerHTML = pkts.map(p => `<tr ${p.anomaly?'class="r-orange"':''}>
     <td style="font-size:10px;color:var(--muted)">${(p.time||'').slice(11,19)}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${p.src_ip||'—'}</td>
-    <td style="font-family:'IBM Plex Mono',monospace">${p.dst_ip||'—'}</td>
-    <td style="color:var(--muted)">${p.src_port||''}</td>
-    <td style="color:var(--muted)">${p.dst_port||''}</td>
-    <td><span class="badge badge-SYS">${p.proto||'—'}</span></td>
-    <td style="color:var(--muted)">${p.len||0}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px">${p.flags||''}</td>
-    <td>${p.ics_proto?`<span style="color:var(--blue);font-size:9px">${p.ics_proto}</span>`:'—'}</td>
-    <td style="font-size:9px">${p.ics_fc!=null?p.ics_fc:''}</td>
-    <td>${p.anomaly?`<span style="color:var(--orange);font-size:9px" title="${escHtml(p.anomaly_reason||'')}">⚠</span>`:'—'}</td>
-    <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'}">${p.threat||0}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent);${C}">${p.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;${C}">${p.dst_ip||'—'}</td>
+    <td style="color:var(--muted);${C}">${p.src_port||''}</td>
+    <td style="color:var(--muted);${C}">${p.dst_port||''}</td>
+    <td style="${C}"><span class="badge badge-SYS">${p.proto||'—'}</span></td>
+    <td style="color:var(--muted);${C}">${p.len||0}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;${C}">${p.flags||''}</td>
+    <td style="${C}">${p.ics_proto?`<span style="color:var(--blue);font-size:9px">${p.ics_proto}</span>`:'—'}</td>
+    <td style="font-size:9px;${C}">${p.ics_fc!=null?p.ics_fc:''}</td>
+    <td style="${C}">${p.anomaly?`<span style="color:var(--orange);font-size:9px" title="${escHtml(p.anomaly_reason||'')}">⚠</span>`:'—'}</td>
+    <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'};${C}">${p.threat||0}</td>
   </tr>`).join('');
 }
 
@@ -2323,12 +2338,13 @@ async function loadSisRules() {
     const sevColor = s=>s==='CRITICAL'?'var(--red)':s==='HIGH'?'var(--orange)':'var(--yellow)';
     const tb = document.getElementById('sis-rules-tbody');
     document.getElementById('sis-rules-empty').style.display='none';
+    const C='text-align:center;vertical-align:middle';
     tb.innerHTML = rules.map(r=>`<tr>
       <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent);font-size:10px">${r.id}</td>
-      <td style="font-size:11px">${r.name}</td>
-      <td><span class="badge badge-SYS">${r.protocol}</span></td>
-      <td style="font-size:10px;color:var(--muted)">${r.zone}</td>
-      <td><span style="color:${sevColor(r.severity)};font-family:'IBM Plex Mono',monospace;font-size:9px">${r.severity}</span></td>
+      <td style="font-size:11px;${C}">${r.name}</td>
+      <td style="${C}"><span class="badge badge-SYS">${r.protocol}</span></td>
+      <td style="font-size:10px;color:var(--muted);${C}">${r.zone}</td>
+      <td style="${C}"><span style="color:${sevColor(r.severity)};font-family:'IBM Plex Mono',monospace;font-size:9px">${r.severity}</span></td>
     </tr>`).join('');
   } catch(e) {}
 }
@@ -2341,14 +2357,14 @@ async function loadSisEvents() {
     const empty = document.getElementById('sis-events-empty');
     if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
     empty.style.display='none';
-    const sevColor = s=>s==='CRITICAL'?'r-red':s==='HIGH'?'r-orange':'';
+    const C='text-align:center;vertical-align:middle';
     tb.innerHTML = events.map(e=>`<tr class="${e.severity==='CRITICAL'?'r-red':e.severity==='HIGH'?'r-orange':''}">
       <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent)">${e.rule_id}</td>
-      <td><span style="color:${e.severity==='CRITICAL'?'var(--red)':'var(--orange)'};font-size:9px">${e.severity}</span></td>
-      <td style="font-family:'IBM Plex Mono',monospace">${e.src_ip||'—'}</td>
-      <td style="font-size:10px">${e.zone||'—'}</td>
-      <td style="font-size:10px;color:var(--muted)" title="${escHtml(e.action||'')}">${escHtml((e.action||'').slice(0,40))}…</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--accent);${C}">${e.rule_id}</td>
+      <td style="${C}"><span style="color:${e.severity==='CRITICAL'?'var(--red)':'var(--orange)'};font-size:9px">${e.severity}</span></td>
+      <td style="font-family:'IBM Plex Mono',monospace;${C}">${e.src_ip||'—'}</td>
+      <td style="font-size:10px;${C}">${e.zone||'—'}</td>
+      <td style="font-size:10px;color:var(--muted);${C}" title="${escHtml(e.action||'')}">${escHtml((e.action||'').slice(0,40))}…</td>
     </tr>`).join('');
   } catch(e) {}
 }
@@ -2367,15 +2383,16 @@ function renderIcsEvents(events) {
   const empty = document.getElementById('ics-events-empty');
   if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
+  const C='text-align:center;vertical-align:middle';
   tb.innerHTML = events.map(e=>`<tr>
     <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
-    <td><span class="badge badge-${e.type}">${e.type}</span></td>
-    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${e.src_ip||'—'}</td>
-    <td style="font-family:'IBM Plex Mono',monospace">${e.dst_ip||'—'}</td>
-    <td style="color:var(--muted)">${e.port||'—'}</td>
-    <td><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'—'}</span></td>
-    <td style="font-size:10px" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--blue)">${e.mitre||''}</td>
+    <td style="${C}"><span class="badge badge-${e.type}">${e.type}</span></td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent);${C}">${e.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;${C}">${e.dst_ip||'—'}</td>
+    <td style="color:var(--muted);${C}">${e.port||'—'}</td>
+    <td style="${C}"><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'—'}</span></td>
+    <td style="font-size:10px;${C}" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--blue);${C}">${e.mitre||''}</td>
   </tr>`).join('');
 }
 
@@ -2392,17 +2409,18 @@ async function loadIcsPackets() {
     const empty = document.getElementById('ics-pkts-empty');
     if (!pkts.length) { tb.innerHTML=''; empty.style.display='block'; return; }
     empty.style.display='none';
+    const C='text-align:center;vertical-align:middle';
     tb.innerHTML = pkts.map(p=>`<tr ${p.anomaly?'class="r-orange"':''}>
       <td style="font-size:10px;color:var(--muted)">${(p.time||'').slice(11,19)}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent)">${p.src_ip||'—'}</td>
-      <td style="font-family:'IBM Plex Mono',monospace">${p.dst_ip||'—'}</td>
-      <td><span style="color:var(--blue);font-size:9px">${p.proto||'—'}</span></td>
-      <td style="color:var(--muted)">${p.fc!=null?p.fc:''}</td>
-      <td style="font-size:10px">${p.fn||'—'}</td>
-      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px">${p.addr!=null?p.addr:'—'}</td>
-      <td style="font-size:10px">${p.val||'—'}</td>
-      <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'}">${p.threat||0}</td>
-      <td>${p.anomaly?`<span style="color:var(--orange)" title="${escHtml(p.reason||'')}">⚠ YES</span>`:'—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;color:var(--accent);${C}">${p.src_ip||'—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;${C}">${p.dst_ip||'—'}</td>
+      <td style="${C}"><span style="color:var(--blue);font-size:9px">${p.proto||'—'}</span></td>
+      <td style="color:var(--muted);${C}">${p.fc!=null?p.fc:''}</td>
+      <td style="font-size:10px;${C}">${p.fn||'—'}</td>
+      <td style="font-family:'IBM Plex Mono',monospace;font-size:10px;${C}">${p.addr!=null?p.addr:'—'}</td>
+      <td style="font-size:10px;${C}">${p.val||'—'}</td>
+      <td style="color:${p.threat>=70?'var(--red)':p.threat>=40?'var(--orange)':'var(--green)'};${C}">${p.threat||0}</td>
+      <td style="${C}">${p.anomaly?`<span style="color:var(--orange)" title="${escHtml(p.reason||'')}">⚠ YES</span>`:'—'}</td>
     </tr>`).join('');
   } catch(e) {}
 }
@@ -2427,15 +2445,16 @@ async function loadHoneypotStats() {
     if (d.proto_hits&&d.proto_hits.length) {
       document.getElementById('hp-top-proto').textContent = d.proto_hits[0][0];
     }
+    const C='text-align:center;vertical-align:middle';
     // Port table
     const pb = document.getElementById('hp-port-table');
     const hitMap = {};
     (d.proto_hits||[]).forEach(([p,c])=>{ hitMap[p]=c; });
     pb.innerHTML = Object.entries(HP_PORTS).map(([port,info])=>`<tr>
       <td style="font-family:'IBM Plex Mono',monospace;color:var(--blue)">${port}</td>
-      <td>${info.proto}</td>
-      <td style="font-size:10px;color:var(--muted)">${info.device}</td>
-      <td style="color:${hitMap[info.proto]>0?'var(--red)':'var(--muted)'}">${hitMap[info.proto]||0}</td>
+      <td style="${C}">${info.proto}</td>
+      <td style="font-size:10px;color:var(--muted);${C}">${info.device}</td>
+      <td style="color:${hitMap[info.proto]>0?'var(--red)':'var(--muted)'};${C}">${hitMap[info.proto]||0}</td>
     </tr>`).join('');
     // Attacker table
     const ab = document.getElementById('hp-attacker-table');
@@ -2445,8 +2464,8 @@ async function loadHoneypotStats() {
       attackerEmpty.style.display='none';
       ab.innerHTML = (d.top_ips||[]).map(([ip,count])=>`<tr>
         <td style="font-family:'IBM Plex Mono',monospace;color:var(--red)">${ip}</td>
-        <td>${count}</td>
-        <td><button class="btn btn-red btn-sm" data-quick-block="${ip}">Block</button></td>
+        <td style="${C}">${count}</td>
+        <td style="${C}"><button class="btn btn-red btn-sm" data-quick-block="${ip}">Block</button></td>
       </tr>`).join('');
     }
   } catch(e) {}
@@ -2469,15 +2488,16 @@ function renderHpEvents(events) {
   const empty = document.getElementById('hp-events-empty');
   if (!events.length) { tb.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
+  const C='text-align:center;vertical-align:middle';
   tb.innerHTML = events.map(e=>`<tr>
     <td style="font-size:10px;color:var(--muted)">${(e.time||'').slice(0,16)}</td>
-    <td style="font-family:'IBM Plex Mono',monospace;color:var(--red)">${e.src_ip||'—'}</td>
-    <td style="font-family:'IBM Plex Mono',monospace">${e.dst_ip||'—'}</td>
-    <td style="color:var(--blue)">${e.port||'—'}</td>
-    <td><span class="badge badge-SYS">${e.proto||'—'}</span></td>
-    <td style="font-size:10px" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
-    <td><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'INFO'}</span></td>
-    <td><button class="btn btn-red btn-sm" data-quick-block="${e.src_ip}">Block</button></td>
+    <td style="font-family:'IBM Plex Mono',monospace;color:var(--red);${C}">${e.src_ip||'—'}</td>
+    <td style="font-family:'IBM Plex Mono',monospace;${C}">${e.dst_ip||'—'}</td>
+    <td style="color:var(--blue);${C}">${e.port||'—'}</td>
+    <td style="${C}"><span class="badge badge-SYS">${e.proto||'—'}</span></td>
+    <td style="font-size:10px;${C}" title="${escHtml(e.message||'')}">${escHtml((e.message||'').slice(0,60))}</td>
+    <td style="${C}"><span class="sev-badge sev-${e.severity==='CRITICAL'?3:e.severity==='HIGH'?2:1}">${e.severity||'INFO'}</span></td>
+    <td style="${C}"><button class="btn btn-red btn-sm" data-quick-block="${e.src_ip}">Block</button></td>
   </tr>`).join('');
 }
 

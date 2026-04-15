@@ -146,13 +146,6 @@ body::before{
 
   <div class="login-footer">Protected system — authorised access only</div>
 
-  <div class="security-badges">
-    <span class="badge">AES-256-GCM</span>
-    <span class="badge">BCRYPT-12</span>
-    <span class="badge">CSRF</span>
-    <span class="badge">TLS</span>
-    <span class="badge">CSP</span>
-  </div>
 </div>
 </body>
 </html>

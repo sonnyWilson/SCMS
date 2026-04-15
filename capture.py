@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 import psycopg2
 
 from config import DB_CONFIG
-from parser import parse_packet, correlate_packet_to_event, ICS_PORTS
+from server.parser import parse_packet, correlate_packet_to_event, ICS_PORTS
 from server.sis import evaluate_packet
 from server.crypto import encrypt_event, encryption_enabled
 
