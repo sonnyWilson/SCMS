@@ -1,4 +1,5 @@
 """
+server/vuln.py — Secure Continuous Monitoring System
 Vulnerability scanner: enumerates installed packages via dpkg/rpm/pip,
 cross-references against an offline CVE baseline, and optionally queries
 the NVD API for live results.

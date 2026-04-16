@@ -1,6 +1,13 @@
 """
+server/capture.py — Secure Continuous Monitoring System
 Live packet capture thread.
 
+Changes:
+  - _insert_log_from_packet now returns the logid so _process_packet can pass
+    it to _insert_geo_event — previously log_id was always None, breaking all
+    geo cross-reference links.
+  - GeoIP lookup upgraded from http://ip-api.com (plain HTTP) to
+    https://ipinfo.io (HTTPS) to prevent ISP interception of IP lookups.
 """
 
 import threading
@@ -84,7 +91,8 @@ def _insert_packet(pkt: dict) -> int | None:
 def _insert_log_from_packet(event: dict, pkt_id: int | None) -> int | None:
     """
     Insert a correlated log event and return the logid.
-
+    Previously discarded the return value, leaving log_id=None everywhere
+    and breaking geo event cross-references.
     """
     try:
         conn = _get_conn(); cur = conn.cursor()

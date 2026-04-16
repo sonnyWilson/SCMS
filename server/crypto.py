@@ -1,4 +1,5 @@
 """
+server/crypto.py — Secure Continuous Monitoring System
 Data-at-rest encryption using AES-256-GCM (authenticated encryption).
 Unchanged from original.
 """

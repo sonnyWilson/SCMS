@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+setup_db.py — Secure Continuous Monitoring System
 Creates all database tables and indexes.
 """
 import psycopg2, sys

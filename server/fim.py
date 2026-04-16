@@ -1,5 +1,5 @@
 """
-
+server/fim.py — Secure Continuous Monitoring System
 File Integrity Monitoring (FIM) — hashes critical files with SHA-256
 and detects changes against a stored baseline.
 """

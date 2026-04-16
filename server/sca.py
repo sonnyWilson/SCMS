@@ -1,4 +1,5 @@
 """
+server/sca.py — Secure Continuous Monitoring System
 Security Configuration Assessment — 32 CIS Benchmark checks
 covering authentication, filesystem, network, auditing, and ICS hardening.
 """

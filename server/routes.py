@@ -80,7 +80,7 @@ def _fmt_log(r):
       11 Severity
       12 MitreIds
       13 SiteZone
-      14 RawLine
+      14 RawLine   ← added; previously missing, causing drawer to show message twice
     """
     sev = r[11] or "LOW"
     tl  = {"CRITICAL": 3, "HIGH": 2, "MEDIUM": 1, "LOW": 0}.get(sev, 0)
@@ -213,7 +213,7 @@ def register_routes(app: Flask):
             log_paths=config.TEXT_LOG_FILES,
             mitre_map=mitre_map,
             current_db=config.DB_CONFIG.get("database", "scms"),
-            csrf_token=generate_csrf_token(),
+            csrf_token=generate_csrf_token(),   # ← new: populates <meta name="csrf-token">
         )
 
     # ── Log ingest ────────────────────────────────────────────────────────────
@@ -253,7 +253,8 @@ def register_routes(app: Flask):
         try:
             total_logs = db.query("SELECT COUNT(*) FROM Logs")[0][0]
 
-
+            # FIXED: was counting all Success=0 rows (SUDO, SUSPICIOUS_COMMAND, etc.)
+            # Now correctly counts only authentication failures.
             failed = db.query("""
                 SELECT COUNT(*) FROM Logs
                 WHERE Success=0 AND EventType IN ('AUTH', 'AUTH_FAIL')
@@ -264,6 +265,7 @@ def register_routes(app: Flask):
             packets    = db.query("SELECT COUNT(*) FROM Packets")[0][0]
             anomalies  = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
 
+            # ADDED: SIS trip count for overview KPI
             sis_events_count = db.query("SELECT COUNT(*) FROM SIS_Events")[0][0]
 
             brute_total = db.query("""
@@ -276,6 +278,7 @@ def register_routes(app: Flask):
             host_count       = db.query("SELECT COUNT(DISTINCT HostName) FROM Logs WHERE HostName IS NOT NULL")[0][0]
             unique_ips       = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE SourceIp IS NOT NULL")[0][0]
 
+            # FIXED: SELECT now includes RawLine (index 14) so _fmt_log can return it
             logs_rows = db.query("""
                 SELECT logid, EventTime, EventType, Success, UserName,
                        HostName, SourceIp, DestIp, Protocol, Port,

@@ -1,6 +1,6 @@
 
 """
-
+server/response.py — Secure Continuous Monitoring System
 Active Response: iptables IP blocking/unblocking, in-memory block registry,
 and optional SMTP email alerts for critical events.
 """

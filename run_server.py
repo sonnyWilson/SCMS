@@ -3,7 +3,13 @@ run_server.py — Secure Continuous Monitoring System
 Production server launcher.  Wraps Flask via Werkzeug's make_server so
 SIGTERM drains requests and stops cleanly — no stack traces on shutdown.
 
+Changes:
+  - Added RotatingFileHandler so logs/server.log never fills the disk.
+    Max 10 MB per file, 5 backups kept.
 """
+
+import sys, os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 
 import signal
 import sys

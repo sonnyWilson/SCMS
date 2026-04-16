@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
 scms.py — Secure Continuous Monitoring System CLI control
-Manages server and agent processes
+Manages server and agent processes without needing systemd.
+
+Changes:
+  - start_command now opens log file inside a with-block so the parent
+    process file handle is closed after fork, preventing a handle leak
+    if the child crashes.
 """
 
 import argparse
@@ -70,17 +75,24 @@ def cmd_start(name):
     svc = SERVICES[name]
     running, pid = _is_running(name)
     if running:
-        print(f"  {Y}  {svc['label']} already running (PID {pid}){X}")
+        print(f"  {Y}⚠  {svc['label']} already running (PID {pid}){X}")
         return
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     # FIXED: use with-block so parent's file handle is closed after Popen
+    # Pass PYTHONPATH explicitly so sudo doesn't strip it — ensures local
+    # modules (buffer, config, db, server/) are always importable.
+    child_env = os.environ.copy()
+    existing  = child_env.get("PYTHONPATH", "")
+    child_env["PYTHONPATH"] = str(BASE_DIR) + (":" + existing if existing else "")
+
     with open(svc["logfile"], "a") as logfile:
         proc = subprocess.Popen(
             [sys.executable, str(svc["script"])],
             stdout=logfile, stderr=logfile,
             cwd=BASE_DIR,
+            env=child_env,
             start_new_session=True,
         )
 
@@ -88,10 +100,10 @@ def cmd_start(name):
     time.sleep(0.5)
 
     if _pid_alive(proc.pid):
-        print(f"  {G}  {svc['label']} started  (PID {proc.pid}){X}")
+        print(f"  {G}✔  {svc['label']} started  (PID {proc.pid}){X}")
         print(f"     Log → {svc['logfile']}")
     else:
-        print(f"  {R}  {svc['label']} crashed immediately — check {svc['logfile']}{X}")
+        print(f"  {R}✘  {svc['label']} crashed immediately — check {svc['logfile']}{X}")
         _clean_pidfile(svc)
 
 
@@ -99,7 +111,7 @@ def cmd_stop(name, timeout=10):
     svc = SERVICES[name]
     running, pid = _is_running(name)
     if not running:
-        print(f"  {Y}  {svc['label']} is not running{X}")
+        print(f"  {Y}⚠  {svc['label']} is not running{X}")
         _clean_pidfile(svc)
         return
 
@@ -121,14 +133,14 @@ def cmd_stop(name, timeout=10):
             pass
 
     _clean_pidfile(svc)
-    print(f"  {G}  {svc['label']} stopped{X}")
+    print(f"  {G}✔  {svc['label']} stopped{X}")
 
 
 def cmd_status():
     print(f"\n  {B}SCMS Service Status{X}\n  {'─'*40}")
     for name, svc in SERVICES.items():
         running, pid = _is_running(name)
-        state = f"{G} RUNNING{X} (PID {pid})" if running else f"{R} STOPPED{X}"
+        state = f"{G}● RUNNING{X} (PID {pid})" if running else f"{R}○ STOPPED{X}"
         print(f"  {B}{svc['label']:<26}{X}  {state}")
     print()
 

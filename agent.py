@@ -1,7 +1,11 @@
 """
+agent.py — Secure Continuous Monitoring System
 Log collection daemon.  Designed to run as a background systemd service.
 Handles SIGTERM/SIGINT cleanly with zero error output on normal shutdown.
 """
+
+import sys, os as _os
+sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 
 import time
 import socket

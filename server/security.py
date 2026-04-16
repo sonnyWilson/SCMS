@@ -1,8 +1,11 @@
 """
-
+server/security.py — Secure Continuous Monitoring System
 Security headers, CSP nonce, rate limiter, and input validators.
 
-
+Changes:
+  - Rate limiter now cleans up stale entries every 5 minutes to prevent
+    unbounded memory growth under sustained traffic.
+  - Cleanup runs in a daemon thread so it never blocks a request.
 """
 
 import time

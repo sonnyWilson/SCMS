@@ -1,4 +1,4 @@
-
+"""server/login_html.py — SCMS login page HTML template."""
 
 LOGIN_HTML = r"""<!DOCTYPE html>
 <html lang="en">

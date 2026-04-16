@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-installer.  Creates the database, tables, admin user, and .env file.
+install.py — Secure Continuous Monitoring System
+First-run installer.  Creates the database, tables, admin user, and .env file.
 Run once after cloning: sudo python3 install.py
 """
 
@@ -23,7 +24,7 @@ def banner():
 {C}{B}
   ╔══════════════════════════════════════════════════════╗
   ║   SCMS — Secure Continuous Monitoring System v4      ║
-  ║                                                      ║
+  ║   ICS/SCADA SIEM — First-Run Installer               ║
   ╚══════════════════════════════════════════════════════╝
 {X}""")
 
@@ -113,7 +114,7 @@ def write_env(cfg: dict):
         ]
     ENV_FILE.write_text("\n".join(lines) + "\n")
     os.chmod(ENV_FILE, 0o600)
-    print(f"\n  {G}  .env written → {ENV_FILE}{X}")
+    print(f"\n  {G}✔  .env written → {ENV_FILE}{X}")
 
 
 def setup_database(cfg: dict) -> bool:
@@ -135,12 +136,12 @@ def setup_database(cfg: dict) -> bool:
             cur.execute("SELECT 1 FROM pg_database WHERE datname=%s", (cfg["DB_NAME"],))
             if not cur.fetchone():
                 cur.execute(f'CREATE DATABASE "{cfg["DB_NAME"]}"')
-                print(f"  {G}  Database '{cfg['DB_NAME']}' created{X}")
+                print(f"  {G}✔  Database '{cfg['DB_NAME']}' created{X}")
             else:
-                print(f"  {Y}  Database '{cfg['DB_NAME']}' already exists{X}")
+                print(f"  {Y}⚠  Database '{cfg['DB_NAME']}' already exists{X}")
         conn.close()
     except Exception as exc:
-        print(f"  {R}  Cannot connect to PostgreSQL: {exc}{X}")
+        print(f"  {R}✘  Cannot connect to PostgreSQL: {exc}{X}")
         return False
 
     # Create tables
@@ -157,10 +158,10 @@ def setup_database(cfg: dict) -> bool:
         import setup_db
         ok = setup_db.create_tables()
         if ok:
-            print(f"  {G}  Tables and indexes ready{X}")
+            print(f"  {G}✔  Tables and indexes ready{X}")
         return ok
     except Exception as exc:
-        print(f"  {R}  Table creation failed: {exc}{X}")
+        print(f"  {R}✘  Table creation failed: {exc}{X}")
         return False
 
 
@@ -184,9 +185,9 @@ def create_admin_user(cfg: dict) -> bool:
         from server.auth import create_user
         ok, msg = create_user(username, password, role="admin")
         if ok:
-            print(f"  {G} Admin user '{username}' created{X}")
+            print(f"  {G}✔  Admin user '{username}' created{X}")
         else:
-            print(f"  {Y}  {msg}{X}")
+            print(f"  {Y}⚠  {msg}{X}")
         return ok or "already exists" in msg
     except Exception as exc:
         print(f"  {R}User creation failed: {exc}{X}")
@@ -197,7 +198,7 @@ def print_summary(cfg: dict):
     port = cfg.get("SERVER_PORT", "5000")
     print(f"""
 {G}{B}  ╔══════════════════════════════════════════════════════╗
-  ║   Installation complete!                             ║
+  ║   Installation complete!                              ║
   ╚══════════════════════════════════════════════════════╝{X}
 
   {B}Start SCMS:{X}
@@ -208,8 +209,8 @@ def print_summary(cfg: dict):
 
   {B}Keys stored in:{X} .env  (chmod 600 — keep secret)
 
-  {Y} nginx with TLS for production.
-  Set SESSION_COOKIE_SECURE=True in app.py when TLS is active. Gotta get the domain registered{X}
+  {Y}Tip: Run behind nginx with TLS for production.
+  Set SESSION_COOKIE_SECURE=True in app.py when TLS is active.{X}
 """)
 
 
@@ -228,7 +229,7 @@ def main():
     print(f"\n{B}── Database Setup ────────────────────────────────────────{X}")
     db_ok = setup_database(cfg)
     if not db_ok:
-        print(f"\n  {Y}  Skipping user creation — fix DB connection and re-run{X}")
+        print(f"\n  {Y}⚠  Skipping user creation — fix DB connection and re-run{X}")
         sys.exit(1)
 
     create_admin_user(cfg)

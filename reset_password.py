@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+reset_password.py — Secure Continuous Monitoring System
 Reset a user's password from the command line (no DB session required).
 Usage:  python3 reset_password.py [username]
 """

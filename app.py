@@ -1,4 +1,5 @@
 """
+app.py — Secure Continuous Monitoring System v4
 Flask application factory.
 """
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-
+reset_all.py — Secure Continuous Monitoring System
 Truncates all event data (Logs, Packets, Incidents, SIS_Events, GeoEvents,
 Inventory) while preserving the schema, users, and configuration.
 

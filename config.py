@@ -1,6 +1,6 @@
 """
 config.py — Secure Continuous Monitoring System v4
-Priority: .env file, environment variables, safe defaults.
+Priority: .env file → environment variables → safe defaults.
 """
 
 import os, secrets
@@ -29,8 +29,8 @@ def _e(key, default=None):
 SERVER_HOST = _e("SERVER_HOST", "0.0.0.0")
 SERVER_PORT = int(_e("SERVER_PORT", 5000))
 
-
-# Use localhost as the default so self-hosted agents work
+# FIXED: default ingest URL used 0.0.0.0 which is unreachable by agents.
+# Use localhost as the default so self-hosted agents work out of the box.
 _ingest_host = "localhost" if SERVER_HOST in ("0.0.0.0", "", "::") else SERVER_HOST
 SERVER_URL = _e("SERVER_URL", f"http://{_ingest_host}:{SERVER_PORT}/ingest")
 

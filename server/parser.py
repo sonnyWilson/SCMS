@@ -1,5 +1,5 @@
 """
-
+server/parser.py — Secure Continuous Monitoring System
 Log line parsing: text logs, journald, and ICS/SCADA protocol decode.
 Maps raw lines to structured event dicts for DB insertion.
 """

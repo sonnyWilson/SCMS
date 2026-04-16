@@ -1,3 +1,8 @@
+"""
+server/dashboard_html.py — Secure Continuous Monitoring System (continued)
+This file is the second half — append to the first half or use as standalone.
+The DASHBOARD_HTML variable is defined here in full.
+"""
 
 DASHBOARD_HTML = r"""
 <!DOCTYPE html>

@@ -7,7 +7,7 @@ def get_connection():
 def insert(event):
     """
     Insert a parsed log event.
-    8 fields — Severity, MitreIds, DestIp, Protocol,
+    Previously only stored 8 fields — Severity, MitreIds, DestIp, Protocol,
     and Port were silently dropped, breaking all severity filtering on the
     dashboard.  All 13 fields now persisted.
     """

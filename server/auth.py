@@ -1,6 +1,10 @@
 """
+server/auth.py — Secure Continuous Monitoring System
 Login, session management, CSRF tokens, account lockout.
 
+Changes:
+  - Added csrf_required decorator for protecting POST API endpoints.
+    Reads token from X-CSRF-Token header (AJAX) or _csrf_token body field (forms).
 """
 
 import os
@@ -272,7 +276,7 @@ def csrf_required(f):
     """
     Validate CSRF token on state-mutating API calls.
 
-    Token is read:
+    Token is read from (in priority order):
       1. X-CSRF-Token request header  (sent by apiPost() in the dashboard JS)
       2. _csrf_token field in JSON body  (fallback for direct API clients)
 

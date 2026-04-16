@@ -1,4 +1,5 @@
 """
+server/sis.py — Secure Continuous Monitoring System
 Safety Instrumented System (SIS) trip rule engine.
 Evaluates decoded ICS packets against 13 predefined SIL-rated rules
 covering Modbus, DNP3, EtherNet/IP, and IEC-104.
