@@ -1,5 +1,5 @@
 """
-server/fim.py — Secure Continuous Monitoring System
+
 File Integrity Monitoring (FIM) — hashes critical files with SHA-256
 and detects changes against a stored baseline.
 """
@@ -19,7 +19,6 @@ DEFAULT_PATHS = [
 
 
 def _sha256(path: str) -> str | None:
-    """Return hex SHA-256 of file contents, or None on error."""
     try:
         h = hashlib.sha256()
         with open(path, "rb") as f:
@@ -32,10 +31,6 @@ def _sha256(path: str) -> str | None:
 
 
 def fim_scan(paths: list | None = None) -> list[dict]:
-    """
-    Scan each path and return a list of dicts with:
-      path, hash (SHA-256), size (bytes), mtime (float), status ('ok' or error msg)
-    """
     targets = paths or DEFAULT_PATHS
     results = []
 

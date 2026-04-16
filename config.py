@@ -1,6 +1,6 @@
 """
 config.py — Secure Continuous Monitoring System v4
-Priority: .env file → environment variables → safe defaults.
+Priority: .env file, environment variables, safe defaults.
 """
 
 import os, secrets
@@ -28,7 +28,11 @@ def _e(key, default=None):
 # ── Server ────────────────────────────────────────────────────────────────────
 SERVER_HOST = _e("SERVER_HOST", "0.0.0.0")
 SERVER_PORT = int(_e("SERVER_PORT", 5000))
-SERVER_URL  = _e("SERVER_URL", f"http://{SERVER_HOST}:{SERVER_PORT}/ingest")
+
+
+# Use localhost as the default so self-hosted agents work
+_ingest_host = "localhost" if SERVER_HOST in ("0.0.0.0", "", "::") else SERVER_HOST
+SERVER_URL = _e("SERVER_URL", f"http://{_ingest_host}:{SERVER_PORT}/ingest")
 
 # ── Database ──────────────────────────────────────────────────────────────────
 DB_CONFIG = {

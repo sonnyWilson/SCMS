@@ -2,19 +2,29 @@
 run_server.py — Secure Continuous Monitoring System
 Production server launcher.  Wraps Flask via Werkzeug's make_server so
 SIGTERM drains requests and stops cleanly — no stack traces on shutdown.
-Used by the systemd scms-server.service unit.
+
 """
 
 import signal
 import sys
 import logging
 import threading
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [server] %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+_handler = RotatingFileHandler(
+    LOG_DIR / "server.log",
+    maxBytes=10 * 1024 * 1024,
+    backupCount=5,
 )
+_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+))
+logging.basicConfig(level=logging.INFO, handlers=[_handler, logging.StreamHandler(sys.stdout)])
 log = logging.getLogger("scms.server")
 
 _shutdown = threading.Event()
@@ -28,7 +38,6 @@ def _handle_shutdown(sig, frame):
 signal.signal(signal.SIGTERM, _handle_shutdown)
 signal.signal(signal.SIGINT,  _handle_shutdown)
 
-# Import app *after* signal handlers registered
 from config import SERVER_HOST, SERVER_PORT, TLS_CERT, TLS_KEY
 from app import create_app
 
@@ -50,7 +59,7 @@ def main():
         log.info("TLS enabled — cert: %s", TLS_CERT)
 
     server = make_server(SERVER_HOST, SERVER_PORT, flask_app, ssl_context=ssl_context)
-    server.timeout = 1   # loop ticks every second to check _shutdown
+    server.timeout = 1
 
     proto = "https" if ssl_context else "http"
     log.info("SCMS Server listening on %s://%s:%d", proto, SERVER_HOST, SERVER_PORT)
@@ -59,8 +68,7 @@ def main():
     srv_thread.start()
 
     log.info("Dashboard → %s://localhost:%d", proto, SERVER_PORT)
-
-    _shutdown.wait()   # block until SIGTERM / SIGINT
+    _shutdown.wait()
 
     log.info("Shutting down HTTP server …")
     server.shutdown()

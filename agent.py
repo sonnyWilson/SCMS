@@ -1,5 +1,4 @@
 """
-agent.py — Secure Continuous Monitoring System
 Log collection daemon.  Designed to run as a background systemd service.
 Handles SIGTERM/SIGINT cleanly with zero error output on normal shutdown.
 """
@@ -12,17 +11,19 @@ import signal
 import sys
 import logging
 from datetime import datetime, timezone
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import requests
 
 from config import TEXT_LOG_FILES, JOURNAL_UNITS, API_KEY, SERVER_URL
 import buffer
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [agent] %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+_handler = RotatingFileHandler(LOG_DIR / "agent.log", maxBytes=10*1024*1024, backupCount=3)
+_handler.setFormatter(logging.Formatter("%(asctime)s [agent] %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+logging.basicConfig(level=logging.INFO, handlers=[_handler, logging.StreamHandler(sys.stdout)])
 log = logging.getLogger("scms.agent")
 
 HOSTNAME       = socket.gethostname()

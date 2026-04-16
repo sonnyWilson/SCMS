@@ -1,19 +1,16 @@
 """
-server/security.py — Secure Continuous Monitoring System
+
 Security headers, CSP nonce, rate limiter, and input validators.
 
-Fixes applied:
-  - CSP nonce generated once per request and stored in g (not session)
-  - Rate limiter uses IP + path key to avoid cross-route false positives
-  - add_security_headers called via app.after_request — signature fixed
+
 """
 
 import time
 import secrets
 import logging
 import re
+import threading
 from collections import defaultdict
-from threading import Lock
 
 from flask import request, g
 from config import ENABLE_RATE_LIMIT, ENABLE_CSP, RATE_LIMIT
@@ -21,29 +18,46 @@ from config import ENABLE_RATE_LIMIT, ENABLE_CSP, RATE_LIMIT
 log = logging.getLogger("scms.security")
 
 # ── Rate limiter ──────────────────────────────────────────────────────────────
-_rate_store: dict = defaultdict(list)   # key → [timestamps]
-_rate_lock  = Lock()
+_rate_store: dict = defaultdict(list)   # ip → [timestamps]
+_rate_lock  = threading.Lock()
+_last_cleanup = [0.0]
+
+
+def _cleanup_rate_store():
+    """Remove entries whose entire window is older than 60 seconds."""
+    now = time.time()
+    with _rate_lock:
+        stale = [k for k, ts in _rate_store.items()
+                 if not any(now - t < 60 for t in ts)]
+        for k in stale:
+            del _rate_store[k]
 
 
 def check_rate_limit() -> bool:
     """
     Return True if the request is allowed, False if the client is over the limit.
     Limit is RATE_LIMIT_PER_MINUTE requests/IP/minute.
+    Runs a background cleanup pass at most once every 5 minutes.
     """
     if not ENABLE_RATE_LIMIT:
         return True
 
     ip  = request.remote_addr or "unknown"
     now = time.time()
-    key = ip
+
+    # Periodic cleanup — fire-and-forget daemon thread, at most once per 5 min
+    if now - _last_cleanup[0] > 300:
+        _last_cleanup[0] = now
+        threading.Thread(target=_cleanup_rate_store, daemon=True,
+                         name="rate-limit-gc").start()
 
     with _rate_lock:
-        window  = [t for t in _rate_store[key] if now - t < 60]
+        window = [t for t in _rate_store[ip] if now - t < 60]
         if len(window) >= RATE_LIMIT:
             log.warning("Rate limit exceeded: %s (%d req/min)", ip, len(window))
             return False
         window.append(now)
-        _rate_store[key] = window
+        _rate_store[ip] = window
     return True
 
 
@@ -64,7 +78,7 @@ def add_security_headers(response):
     """
     after_request hook — adds security headers to every response.
     """
-    nonce = get_csp_nonce()   # always generate so the header is consistent
+    nonce = get_csp_nonce()
 
     if ENABLE_CSP:
         csp = (
@@ -78,12 +92,12 @@ def add_security_headers(response):
         )
         response.headers["Content-Security-Policy"] = csp
 
-    response.headers["X-Frame-Options"]           = "DENY"
-    response.headers["X-Content-Type-Options"]    = "nosniff"
-    response.headers["X-XSS-Protection"]          = "1; mode=block"
-    response.headers["Referrer-Policy"]           = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"]        = "geolocation=(), microphone=(), camera=()"
-    response.headers["Cache-Control"]             = "no-store"
+    response.headers["X-Frame-Options"]        = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-XSS-Protection"]       = "1; mode=block"
+    response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"]     = "geolocation=(), microphone=(), camera=()"
+    response.headers["Cache-Control"]          = "no-store"
 
     return response
 

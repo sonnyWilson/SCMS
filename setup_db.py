@@ -1,6 +1,6 @@
+#!/usr/bin/env python3
 """
-setup_db.py — Secure Continuous Monitoring System
-Expanded schema: Logs, Packets, Incidents, Inventory, SIS_Events, GeoEvents, scms_users
+Creates all database tables and indexes.
 """
 import psycopg2, sys
 from config import DB_CONFIG
@@ -121,7 +121,6 @@ def create_tables():
             last_login    TIMESTAMPTZ, active BOOLEAN DEFAULT TRUE
         );
         """)
-
         for idx in [
             "CREATE INDEX IF NOT EXISTS idx_logs_time   ON Logs(EventTime DESC)",
             "CREATE INDEX IF NOT EXISTS idx_logs_type   ON Logs(EventType)",
@@ -143,7 +142,6 @@ def create_tables():
             "CREATE INDEX IF NOT EXISTS idx_geo_time    ON GeoEvents(EventTime DESC)",
             "CREATE INDEX IF NOT EXISTS idx_geo_country ON GeoEvents(GeoCountry)",
         ]: cur.execute(idx)
-
         conn.commit(); cur.close(); conn.close()
         print("  All tables and indexes ready."); return True
     except Exception as e: print(f"Table error: {e}"); return False

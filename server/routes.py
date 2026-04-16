@@ -1,6 +1,15 @@
 """
 server/routes.py — Secure Continuous Monitoring System
 All Flask route handlers.
+
+Changes:
+  - _fmt_log now fetches and returns RawLine so the detail drawer shows the
+    original log line instead of the parsed message.
+  - api_stats failed_logins now only counts AUTH/AUTH_FAIL events (previously
+    counted all Success=0 rows including SUDO and SUSPICIOUS_COMMAND).
+  - api_stats includes sis_events count for the Overview KPI row.
+  - csrf_token passed to the dashboard template for the CSRF meta tag.
+  - @csrf_required applied to all state-mutating POST endpoints.
 """
 
 import secrets
@@ -23,7 +32,7 @@ from flask import (
 from config import API_KEY, DB_CONFIG
 from server.auth import (
     attempt_login, generate_csrf_token, validate_csrf,
-    login_required, api_login_required,
+    login_required, api_login_required, csrf_required,
 )
 from server.security import check_rate_limit, get_csp_nonce, sanitize_str
 import db
@@ -31,7 +40,7 @@ from server import parser as log_parser
 
 log = logging.getLogger("scms.routes")
 
-# ── Event-type colour palette (for sidebar chart) ─────────────────────────────
+# ── Event-type colour palette ─────────────────────────────────────────────────
 ETYPE_COLORS = {
     "AUTH":               "#f85149",
     "AUTH_FAIL":          "#e3a03a",
@@ -56,14 +65,26 @@ ETYPE_COLORS = {
 def _fmt_log(r):
     """
     Convert a Logs query row into the dict the dashboard JS expects.
-    Column order: logid, EventTime, EventType, Success, UserName,
-                  HostName, SourceIp, DestIp, Protocol, Port,
-                  Message, Severity, MitreIds, SiteZone
+    Column order (15 cols):
+      0  logid
+      1  EventTime
+      2  EventType
+      3  Success
+      4  UserName
+      5  HostName
+      6  SourceIp
+      7  DestIp
+      8  Protocol
+      9  Port
+      10 Message
+      11 Severity
+      12 MitreIds
+      13 SiteZone
+      14 RawLine
     """
     sev = r[11] or "LOW"
     tl  = {"CRITICAL": 3, "HIGH": 2, "MEDIUM": 1, "LOW": 0}.get(sev, 0)
     return {
-        # ── fields the dashboard JS references directly ───────────────────────
         "logid":        r[0],
         "timestamp":    r[1].isoformat() if r[1] else None,
         "eventtype":    r[2]  or "SYS",
@@ -79,8 +100,7 @@ def _fmt_log(r):
         "severity":     sev,
         "mitre_ids":    r[12] or "",
         "zone":         r[13] or "—",
-        "rawline":      r[10] or "",
-        # ── legacy aliases so nothing downstream breaks ───────────────────────
+        "rawline":      r[14] or r[10] or "",   # RawLine, fallback to Message
         "id":           r[0],
         "type":         r[2]  or "SYS",
         "host":         r[5]  or "—",
@@ -93,7 +113,7 @@ def _fmt_log(r):
 # ── Route registration ────────────────────────────────────────────────────────
 def register_routes(app: Flask):
 
-    # ── Login (GET + POST) ────────────────────────────────────────────────────
+    # ── Login ─────────────────────────────────────────────────────────────────
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if session.get("logged_in"):
@@ -110,7 +130,6 @@ def register_routes(app: Flask):
                 username_prefill="",
             )
 
-        # POST
         if not check_rate_limit():
             return render_template_string(
                 LOGIN_HTML,
@@ -157,7 +176,7 @@ def register_routes(app: Flask):
         session.clear()
         return redirect(url_for("login"))
 
-    # ── Dashboard (protected) ─────────────────────────────────────────────────
+    # ── Dashboard ─────────────────────────────────────────────────────────────
     @app.route("/")
     @login_required
     def dashboard():
@@ -194,9 +213,10 @@ def register_routes(app: Flask):
             log_paths=config.TEXT_LOG_FILES,
             mitre_map=mitre_map,
             current_db=config.DB_CONFIG.get("database", "scms"),
+            csrf_token=generate_csrf_token(),
         )
 
-    # ── Log ingest (agent → server) ───────────────────────────────────────────
+    # ── Log ingest ────────────────────────────────────────────────────────────
     @app.route("/ingest", methods=["POST"])
     def ingest():
         if not check_rate_limit():
@@ -232,14 +252,24 @@ def register_routes(app: Flask):
     def api_stats():
         try:
             total_logs = db.query("SELECT COUNT(*) FROM Logs")[0][0]
-            failed     = db.query("SELECT COUNT(*) FROM Logs WHERE Success=0")[0][0]
+
+
+            failed = db.query("""
+                SELECT COUNT(*) FROM Logs
+                WHERE Success=0 AND EventType IN ('AUTH', 'AUTH_FAIL')
+            """)[0][0]
+
             incidents  = db.query("SELECT COUNT(*) FROM Incidents")[0][0]
             open_inc   = db.query("SELECT COUNT(*) FROM Incidents WHERE Status='OPEN'")[0][0]
             packets    = db.query("SELECT COUNT(*) FROM Packets")[0][0]
             anomalies  = db.query("SELECT COUNT(*) FROM Packets WHERE Anomaly=TRUE")[0][0]
 
-            # Extra sidebar counters
-            brute_total      = db.query("SELECT COUNT(DISTINCT SourceIp) FROM Logs WHERE Success=0 AND SourceIp IS NOT NULL")[0][0]
+            sis_events_count = db.query("SELECT COUNT(*) FROM SIS_Events")[0][0]
+
+            brute_total = db.query("""
+                SELECT COUNT(DISTINCT SourceIp) FROM Logs
+                WHERE Success=0 AND EventType IN ('AUTH','AUTH_FAIL') AND SourceIp IS NOT NULL
+            """)[0][0]
             sudo_total       = db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUDO'")[0][0]
             suspicious_count = db.query("SELECT COUNT(*) FROM Logs WHERE EventType='SUSPICIOUS_COMMAND'")[0][0]
             auth_count       = db.query("SELECT COUNT(*) FROM Logs WHERE EventType IN ('AUTH','AUTH_FAIL')")[0][0]
@@ -249,14 +279,14 @@ def register_routes(app: Flask):
             logs_rows = db.query("""
                 SELECT logid, EventTime, EventType, Success, UserName,
                        HostName, SourceIp, DestIp, Protocol, Port,
-                       Message, Severity, MitreIds, SiteZone
+                       Message, Severity, MitreIds, SiteZone, RawLine
                 FROM Logs ORDER BY EventTime DESC LIMIT 500
             """)
             logs = [_fmt_log(r) for r in logs_rows]
 
             top_ips_rows = db.query("""
                 SELECT SourceIp, COUNT(*) as c FROM Logs
-                WHERE Success=0 AND SourceIp IS NOT NULL
+                WHERE Success=0 AND EventType IN ('AUTH','AUTH_FAIL') AND SourceIp IS NOT NULL
                 GROUP BY SourceIp ORDER BY c DESC LIMIT 10
             """)
             top_ips = [[r[0], r[1]] for r in top_ips_rows]
@@ -278,7 +308,6 @@ def register_routes(app: Flask):
                 SELECT EventType, COUNT(*) FROM Logs
                 GROUP BY EventType ORDER BY COUNT(*) DESC LIMIT 15
             """)
-            # Dashboard sidebar expects a list of {name, count, color}
             event_types = [
                 {
                     "name":  r[0],
@@ -301,6 +330,7 @@ def register_routes(app: Flask):
                 "open_incidents":   open_inc,
                 "total_packets":    packets,
                 "anomaly_packets":  anomalies,
+                "sis_events":       sis_events_count,   # ← new
                 "logs":             logs,
                 "top_ips":          top_ips,
                 "sudo_users":       sudo_users,
@@ -318,7 +348,7 @@ def register_routes(app: Flask):
         try:
             rows = db.query("""
                 SELECT SourceIp, COUNT(*) as c FROM Logs
-                WHERE Success=0 AND SourceIp IS NOT NULL
+                WHERE Success=0 AND EventType IN ('AUTH','AUTH_FAIL') AND SourceIp IS NOT NULL
                 GROUP BY SourceIp ORDER BY c DESC LIMIT 10
             """)
             return jsonify([[r[0], r[1]] for r in rows]), 200
@@ -342,6 +372,7 @@ def register_routes(app: Flask):
     # ── /api/fim ──────────────────────────────────────────────────────────────
     @app.route("/api/fim", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_fim():
         try:
             from server.fim import fim_scan
@@ -377,6 +408,7 @@ def register_routes(app: Flask):
     # ── /api/compliance ───────────────────────────────────────────────────────
     @app.route("/api/compliance", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_compliance():
         try:
             from server.sca import run_sca, compute_compliance
@@ -390,6 +422,7 @@ def register_routes(app: Flask):
     # ── /api/block-ip ─────────────────────────────────────────────────────────
     @app.route("/api/block-ip", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_block_ip():
         try:
             from server.response import block_ip
@@ -406,6 +439,7 @@ def register_routes(app: Flask):
     # ── /api/unblock-ip ───────────────────────────────────────────────────────
     @app.route("/api/unblock-ip", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_unblock_ip():
         try:
             from server.response import unblock_ip
@@ -446,6 +480,7 @@ def register_routes(app: Flask):
     # ── /api/kill-process ─────────────────────────────────────────────────────
     @app.route("/api/kill-process", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_kill_process():
         try:
             data = request.get_json(silent=True) or {}
@@ -518,14 +553,17 @@ def register_routes(app: Flask):
     @app.route("/api/switch-db", methods=["POST"])
     @api_login_required
     def api_switch_db():
+        # Live database switching requires a server restart.
+        # The JS now shows an informative toast instead of silently failing.
         return jsonify({
             "success": False,
-            "message": "Switch DB_NAME in .env and restart the server",
+            "message": "Set DB_NAME in .env and restart the server to switch databases.",
         }), 200
 
     # ── /api/create-db ────────────────────────────────────────────────────────
     @app.route("/api/create-db", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_create_db():
         try:
             import psycopg2
@@ -542,9 +580,10 @@ def register_routes(app: Flask):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    # ── /api/add-log-path / /api/remove-log-path ─────────────────────────────
+    # ── /api/add-log-path ─────────────────────────────────────────────────────
     @app.route("/api/add-log-path", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_add_log_path():
         data = request.get_json(silent=True) or {}
         path = sanitize_str(data.get("path", ""), 512)
@@ -555,8 +594,10 @@ def register_routes(app: Flask):
             config.TEXT_LOG_FILES.append(path)
         return jsonify({"ok": True, "paths": config.TEXT_LOG_FILES}), 200
 
+    # ── /api/remove-log-path ─────────────────────────────────────────────────
     @app.route("/api/remove-log-path", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_remove_log_path():
         data = request.get_json(silent=True) or {}
         path = sanitize_str(data.get("path", ""), 512)
@@ -567,6 +608,7 @@ def register_routes(app: Flask):
     # ── /clear-logs ───────────────────────────────────────────────────────────
     @app.route("/clear-logs", methods=["POST"])
     @api_login_required
+    @csrf_required
     def clear_logs():
         try:
             import psycopg2
@@ -583,6 +625,10 @@ def register_routes(app: Flask):
     @app.route("/import/csv", methods=["POST"])
     @api_login_required
     def import_csv():
+        # CSRF for multipart: check header (JS sends it via fetch headers)
+        token = request.headers.get("X-CSRF-Token", "")
+        if not validate_csrf(token):
+            return jsonify({"error": "CSRF token invalid"}), 403
         try:
             f = request.files.get("file")
             if not f:
@@ -598,6 +644,9 @@ def register_routes(app: Flask):
                     "UserName":  row.get("UserName"),
                     "HostName":  row.get("HostName"),
                     "SourceIp":  row.get("SourceIp"),
+                    "DestIp":    row.get("DestIp"),
+                    "Protocol":  row.get("Protocol"),
+                    "Port":      int(row["Port"]) if row.get("Port","").isdigit() else None,
                     "Message":   row.get("Message", "")[:700],
                     "RawLine":   row.get("RawLine", "")[:700],
                     "Severity":  row.get("Severity", "LOW"),
@@ -659,6 +708,7 @@ def register_routes(app: Flask):
     # ── /api/capture/start ────────────────────────────────────────────────────
     @app.route("/api/capture/start", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_capture_start():
         try:
             from server.capture import start_capture
@@ -672,6 +722,7 @@ def register_routes(app: Flask):
     # ── /api/capture/stop ─────────────────────────────────────────────────────
     @app.route("/api/capture/stop", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_capture_stop():
         try:
             from server.capture import stop_capture
@@ -719,6 +770,7 @@ def register_routes(app: Flask):
     # ── /api/network/scan ─────────────────────────────────────────────────────
     @app.route("/api/network/scan", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_network_scan():
         try:
             data   = request.get_json(silent=True) or {}
@@ -740,7 +792,6 @@ def register_routes(app: Flask):
                     hosts.append({"ip": ip, "hostname": hostname, "status": "up"})
             return jsonify({"hosts": hosts, "target": target, "count": len(hosts)}), 200
         except FileNotFoundError:
-            # nmap not installed — threaded ping sweep fallback
             try:
                 net = ipaddress.ip_network(target, strict=False)
                 ips = [str(h) for h in net.hosts()][:254]
@@ -760,6 +811,7 @@ def register_routes(app: Flask):
     # ── /api/network/portscan ─────────────────────────────────────────────────
     @app.route("/api/network/portscan", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_network_portscan():
         try:
             data   = request.get_json(silent=True) or {}
@@ -915,11 +967,11 @@ def register_routes(app: Flask):
                     "Authentication":  auth_score,
                 },
                 "counts": {
-                    "sis_events":     sis_events,
-                    "ics_logs":       ics_logs,
-                    "critical_sis":   crit_sis,
-                    "anomaly_packets":anomaly_pkts,
-                    "external_ics":   ext_ics,
+                    "sis_events":      sis_events,
+                    "ics_logs":        ics_logs,
+                    "critical_sis":    crit_sis,
+                    "anomaly_packets": anomaly_pkts,
+                    "external_ics":    ext_ics,
                 },
                 "standards": [
                     "IEC 62443-3-3", "NIST SP 800-82 Rev 3",
@@ -955,6 +1007,7 @@ def register_routes(app: Flask):
     # ── /api/assets/update ────────────────────────────────────────────────────
     @app.route("/api/assets/update", methods=["POST"])
     @api_login_required
+    @csrf_required
     def api_assets_update():
         try:
             import psycopg2

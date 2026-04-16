@@ -1,13 +1,6 @@
 """
-server/auth.py — Secure Continuous Monitoring System
 Login, session management, CSRF tokens, account lockout.
 
-Fixes applied:
-  - verify_password handles bcrypt AND scrypt: fallback formats correctly
-  - CSRF token stored in session (not regenerated on every request)
-  - generate_csrf_token() is idempotent — returns existing token if present
-  - Account lockout counter resets on successful login
-  - create_user / verify_password signatures match what install.py + reset_password.py expect
 """
 
 import os
@@ -86,12 +79,10 @@ def verify_password(plaintext: str, stored_hash: str) -> bool:
         return False
 
     try:
-        # ── bcrypt ────────────────────────────────────────────────────────────
         if stored_hash.startswith(("$2b$", "$2a$", "$2y$")):
             import bcrypt
             return bcrypt.checkpw(plaintext.encode(), stored_hash.encode())
 
-        # ── scrypt fallback ───────────────────────────────────────────────────
         if stored_hash.startswith("scrypt:"):
             parts = stored_hash.split(":")
             if len(parts) != 3:
@@ -102,7 +93,6 @@ def verify_password(plaintext: str, stored_hash: str) -> bool:
             stored_dk  = base64.b64decode(b64_dk)
             derived_dk = hashlib.scrypt(plaintext.encode(), salt=salt,
                                         n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P)
-            # Constant-time comparison
             return secrets.compare_digest(derived_dk, stored_dk)
 
         log.warning("Unknown password hash format: %s…", stored_hash[:10])
@@ -188,7 +178,6 @@ def _is_locked(username: str) -> bool:
         return False
     if entry["locked_until"] and datetime.now(timezone.utc).timestamp() < entry["locked_until"]:
         return True
-    # Lockout expired — clear it
     _lockout.pop(username, None)
     return False
 
@@ -275,5 +264,37 @@ def api_login_required(f):
     def decorated(*args, **kwargs):
         if not session.get("logged_in"):
             return jsonify({"error": "Not authenticated"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def csrf_required(f):
+    """
+    Validate CSRF token on state-mutating API calls.
+
+    Token is read:
+      1. X-CSRF-Token request header  (sent by apiPost() in the dashboard JS)
+      2. _csrf_token field in JSON body  (fallback for direct API clients)
+
+    Apply after @api_login_required so authentication is checked first:
+
+        @app.route("/api/some-action", methods=["POST"])
+        @api_login_required
+        @csrf_required
+        def some_action():
+            ...
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = (
+            request.headers.get("X-CSRF-Token") or
+            (request.get_json(silent=True) or {}).get("_csrf_token")
+        )
+        if not validate_csrf(token):
+            log.warning(
+                "CSRF validation failed on %s from %s",
+                request.path, request.remote_addr,
+            )
+            return jsonify({"error": "CSRF token invalid"}), 403
         return f(*args, **kwargs)
     return decorated

@@ -1,17 +1,6 @@
 """
-server/capture.py — Secure Continuous Monitoring System
 Live packet capture thread.
 
-Attempts to use scapy for rich packet decode.
-Falls back to tshark (Wireshark CLI) JSON output if scapy unavailable.
-Falls back to tcpdump hex output as last resort.
-
-Every captured packet:
-  1. Decoded by parser.parse_packet()
-  2. Evaluated by sis.evaluate_packet() for SIS trip rules
-  3. Inserted into Packets table (encrypted sensitive fields)
-  4. If anomaly: correlated into Logs table + potential Incident created
-  5. Geolocation lookup for external IPs (MaxMind GeoIP2 or ip-api.com)
 """
 
 import threading
@@ -39,10 +28,10 @@ _pkt_count     = 0
 _pkt_lock      = threading.Lock()
 
 # ── Burst detector state (for ICS-005 Modbus burst rule) ─────────────────────
-_burst_tracker: dict = {}   # src_ip -> {fc, count, window_start}
+_burst_tracker: dict = {}
 _burst_lock    = threading.Lock()
-BURST_WINDOW   = 10   # seconds
-BURST_THRESHOLD = 20  # writes in window
+BURST_WINDOW   = 10
+BURST_THRESHOLD = 20
 
 
 def get_stats() -> dict:
@@ -92,8 +81,11 @@ def _insert_packet(pkt: dict) -> int | None:
         return None
 
 
-def _insert_log_from_packet(event: dict, pkt_id: int | None):
-    """Insert a correlated log event."""
+def _insert_log_from_packet(event: dict, pkt_id: int | None) -> int | None:
+    """
+    Insert a correlated log event and return the logid.
+
+    """
     try:
         conn = _get_conn(); cur = conn.cursor()
         enc = encrypt_event(event) if encryption_enabled() else event
@@ -102,6 +94,7 @@ def _insert_log_from_packet(event: dict, pkt_id: int | None):
             (EventTime,EventType,Success,SourceIp,DestIp,Protocol,Port,
              Message,RawLine,Severity,MitreIds,PacketRef)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            RETURNING logid
         """, (
             enc.get("EventTime"), enc.get("EventType"), enc.get("Success",1),
             enc.get("SourceIp"), enc.get("DestIp"),
@@ -109,9 +102,12 @@ def _insert_log_from_packet(event: dict, pkt_id: int | None):
             enc.get("Message","")[:700], enc.get("RawLine","")[:700],
             enc.get("Severity","LOW"), enc.get("MitreIds"), pkt_id,
         ))
+        log_id = cur.fetchone()[0]
         conn.commit(); cur.close(); conn.close()
+        return log_id
     except Exception as e:
         log.error("insert_log_from_packet: %s", e)
+        return None
 
 
 def _insert_sis_event(sis: dict, pkt_id: int | None):
@@ -155,7 +151,7 @@ def _insert_geo_event(pkt: dict, pkt_id: int | None, log_id: int | None):
         log.error("insert_geo: %s", e)
 
 
-# ── Geo lookup (ip-api.com, free, no key needed) ──────────────────────────────
+# ── Geo lookup — HTTPS via ipinfo.io (previously plain HTTP ip-api.com) ───────
 _geo_cache: dict = {}
 _geo_lock = threading.Lock()
 
@@ -166,14 +162,22 @@ def _geolocate(ip: str) -> dict:
             return _geo_cache[ip]
     try:
         import urllib.request
-        url  = f"http://ip-api.com/json/{ip}?fields=status,country,city,lat,lon,isp"
-        req  = urllib.request.Request(url, headers={"User-Agent":"scms-ics/1.0"})
+        url = f"https://ipinfo.io/{ip}/json"
+        req = urllib.request.Request(url, headers={"User-Agent": "scms-ics/1.0"})
         with urllib.request.urlopen(req, timeout=3) as r:
             data = json.loads(r.read().decode())
-        if data.get("status") == "success":
-            result = {"GeoCountry": data.get("country",""), "GeoCity": data.get("city",""),
-                      "GeoLat": data.get("lat"), "GeoLon": data.get("lon"),
-                      "GeoISP": data.get("isp","")}
+        if not data.get("bogon"):
+            loc = data.get("loc", "0,0")
+            parts = loc.split(",")
+            lat = float(parts[0]) if parts[0] else None
+            lon = float(parts[1]) if len(parts) > 1 and parts[1] else None
+            result = {
+                "GeoCountry": data.get("country", ""),
+                "GeoCity":    data.get("city", ""),
+                "GeoLat":     lat,
+                "GeoLon":     lon,
+                "GeoISP":     data.get("org", ""),
+            }
             with _geo_lock:
                 _geo_cache[ip] = result
             return result
@@ -215,11 +219,9 @@ def _process_packet(raw_pkt: dict):
     try:
         pkt = parse_packet(raw_pkt)
 
-        # Geo enrichment for external IPs
         geo = _geolocate(pkt.get("SrcIp",""))
         pkt.update(geo)
 
-        # Burst check
         if _check_burst(pkt):
             pkt["Anomaly"] = True
             pkt["AnomalyReason"] = (pkt.get("AnomalyReason","") or "") + "; Modbus write burst detected"
@@ -230,18 +232,16 @@ def _process_packet(raw_pkt: dict):
         with _pkt_lock:
             _pkt_count += 1
 
-        # Correlated log event for anomalies and ICS packets
+        # Correlated log event — capture returned logid for geo cross-reference
         log_id = None
         if pkt.get("Anomaly") or pkt.get("ICSProtocol") or pkt.get("ThreatScore",0) >= 20:
             event  = correlate_packet_to_event(pkt)
-            _insert_log_from_packet(event, pkt_id)
+            log_id = _insert_log_from_packet(event, pkt_id)
 
-        # SIS rule evaluation
         sis_events = evaluate_packet(pkt)
         for sis in sis_events:
             _insert_sis_event(sis, pkt_id)
 
-        # Geo event
         _insert_geo_event(pkt, pkt_id, log_id)
 
     except Exception as e:
@@ -344,7 +344,7 @@ def start_capture(interface: str = "eth0"):
     _pkt_count = 0
 
     try:
-        import scapy.all as _  # test import
+        import scapy.all as _
         backend = _capture_scapy
     except ImportError:
         backend = _capture_tshark
@@ -371,7 +371,6 @@ def list_interfaces() -> list[str]:
     """Return available network interfaces."""
     ifaces = []
     try:
-        # Linux: read /proc/net/dev
         with open("/proc/net/dev") as f:
             for line in f.readlines()[2:]:
                 iface = line.split(":")[0].strip()

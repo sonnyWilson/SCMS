@@ -1,5 +1,6 @@
+
 """
-server/response.py — Secure Continuous Monitoring System
+
 Active Response: iptables IP blocking/unblocking, in-memory block registry,
 and optional SMTP email alerts for critical events.
 """
@@ -15,7 +16,6 @@ from config import SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM, SM
 
 log = logging.getLogger("scms.response")
 
-# ── In-memory blocked IP registry ────────────────────────────────────────────
 _blocked: dict[str, dict] = {}
 _blocked_lock = threading.Lock()
 
@@ -28,8 +28,6 @@ def block_ip(ip: str, reason: str = "Manual") -> tuple[bool, str]:
             "reason":     reason,
             "blocked_at": datetime.now(timezone.utc).isoformat(),
         }
-
-    # Attempt iptables
     try:
         subprocess.run(
             ["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"],
@@ -48,7 +46,6 @@ def block_ip(ip: str, reason: str = "Manual") -> tuple[bool, str]:
 def unblock_ip(ip: str) -> tuple[bool, str]:
     with _blocked_lock:
         _blocked.pop(ip, None)
-
     try:
         subprocess.run(
             ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"],
@@ -70,13 +67,11 @@ def is_blocked(ip: str) -> bool:
         return ip in _blocked
 
 
-# ── Email alerting ────────────────────────────────────────────────────────────
 def _smtp_configured() -> bool:
     return bool(SMTP_HOST and SMTP_USER and SMTP_PASSWORD and SMTP_FROM and SMTP_TO)
 
 
 def send_alert_email(subject: str, body: str) -> bool:
-    """Send an email alert.  Returns True on success."""
     if not _smtp_configured():
         log.debug("SMTP not configured — skipping email alert")
         return False
@@ -86,7 +81,6 @@ def send_alert_email(subject: str, body: str) -> bool:
         msg["From"]    = SMTP_FROM
         msg["To"]      = SMTP_TO
         msg.attach(MIMEText(body, "plain"))
-
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as s:
             s.starttls()
             s.login(SMTP_USER, SMTP_PASSWORD)
@@ -99,7 +93,6 @@ def send_alert_email(subject: str, body: str) -> bool:
 
 
 def maybe_auto_block(top_ips: list, threshold: int = 10) -> list[str]:
-    """Auto-block IPs exceeding failed-login threshold.  Returns newly blocked IPs."""
     newly_blocked = []
     for ip, count in top_ips:
         if ip and count > threshold and not is_blocked(ip):
@@ -107,7 +100,6 @@ def maybe_auto_block(top_ips: list, threshold: int = 10) -> list[str]:
             if ok:
                 newly_blocked.append(ip)
                 log.warning("Auto-blocked %s (%d failed logins)", ip, count)
-                # Fire email in background
                 threading.Thread(
                     target=send_alert_email,
                     args=(f"Auto-blocked {ip}", f"{ip} blocked — {count} failed logins"),
