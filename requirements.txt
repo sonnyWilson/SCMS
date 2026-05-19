@@ -1,0 +1,2 @@
+flask>=3.0,<4.0
+waitress>=3.0,<4.0       # production WSGI server used by run_server.py
